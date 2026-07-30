@@ -2,7 +2,7 @@
 
 > 50-endpoint crypto, market intelligence, and AI inference API for AI agents — with x402 micropayments on Base
 
-[![Version](https://img.shields.io/badge/version-5.3.0-brightgreen)](https://github.com/vbkotecha/aiservices-api)
+[![Version](https://img.shields.io/badge/version-5.3.0-brightgreen)](https://github.com/vbkotecha/agentservices-api)
 [![Network](https://img.shields.io/badge/network-Base%20Mainnet-blue)](https://base.org)
 [![Payment](https://img.shields.io/badge/payment-x402%20%2F%20USDC-purple)](https://x402.org)
 [![MCP](https://img.shields.io/badge/MCP-compatible-orange)](https://modelcontextprotocol.io)
@@ -285,6 +285,6 @@ MIT — Build on it, fork it, integrate it.
 - **API:** [agentservices.to](https://agentservices.to)
 - **MCP:** [agentservices.to/mcp](https://agentservices.to/mcp)
 - **Discovery:** [agentservices.to/.well-known/x402](https://agentservices.to/.well-known/x402)
-- **GitHub:** [github.com/vbkotecha/aiservices-api](https://github.com/vbkotecha/aiservices-api)
+- **GitHub:** [github.com/vbkotecha/agentservices-api](https://github.com/vbkotecha/agentservices-api)
 - **x402 Protocol:** [x402.org](https://x402.org)
 - **Base:** [base.org](https://base.org)
