@@ -1721,7 +1721,7 @@ async def llms_full_txt():
         "- GET /v1/geo/{ip} — IP geolocation lookup (city, country, ISP, coordinates)",
         "- GET /v1/policies — List dispute policy templates",
         "- GET /v1/agent-context — Paste-ready market context for LLM prompts",
-        "- POST /mcp — MCP server (JSON-RPC over SSE, 37 tools)",
+        "- POST /mcp — MCP server (JSON-RPC over Streamable HTTP (MCP v2 stateless), 37 tools)",
         "",
         "## Paid Endpoints (x402 / USDC on Base)",
         "",
