@@ -3,6 +3,7 @@ AgentServices — Paid APIs for AI agents
 Crypto market data, IP geolocation, URL metadata, marketing intelligence
 """
 import os
+import html
 from pathlib import Path
 
 # Load .env file
@@ -58,6 +59,8 @@ WALLET = os.environ.get("WALLET_ADDRESS", AISERVICES_PAY_TO)
 app = FastAPI(
     title="AgentServices",
     version="5.3.0",
+    docs_url=None,
+    redoc_url=None,
     contact={
         "name": "AgentServices",
         "url": "https://agentservices.to",
@@ -2402,6 +2405,54 @@ async def ai_plugin_manifest():
         "legal_info_url": "https://agentservices.to",
         "url": "https://agentservices.to",
     }
+
+
+def _self_hosted_docs_html(title: str = "AgentServices API Documentation") -> str:
+    """Render a dependency-free endpoint index that works without CDN JavaScript."""
+    spec = app.openapi()
+    endpoint_rows = []
+    for path, path_item in sorted(spec.get("paths", {}).items()):
+        for method in ("get", "post", "put", "patch", "delete", "options", "head", "trace"):
+            operation = path_item.get(method)
+            if not operation:
+                continue
+            summary = operation.get("summary") or operation.get("description") or ""
+            summary = str(summary).splitlines()[0][:220]
+            tags = ", ".join(operation.get("tags", []))
+            endpoint_rows.append(
+                "<tr>"
+                f'<td><span class="method {method.upper()}">{method.upper()}</span></td>'
+                f"<td><code>{html.escape(path)}</code></td>"
+                f"<td>{html.escape(summary)}</td>"
+                f"<td>{html.escape(tags)}</td>"
+                "</tr>"
+            )
+    rows = "".join(endpoint_rows)
+    return f"""<!doctype html>
+<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">
+<title>{html.escape(title)}</title>
+<style>
+:root{{color-scheme:dark}}body{{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0b1020;color:#e8eefc;margin:0}}
+main{{max-width:1200px;margin:auto;padding:36px 20px}}h1{{margin:0 0 8px;font-size:32px}}p{{color:#aab7d4}}a{{color:#83b4ff}}.links{{margin:22px 0}}
+.table-wrap{{overflow:auto;border:1px solid #273452;border-radius:10px;background:#111a2d}}table{{width:100%;border-collapse:collapse;min-width:760px}}
+th,td{{text-align:left;padding:12px 14px;border-bottom:1px solid #273452;vertical-align:top}}th{{background:#18233c;color:#bcd0f5;position:sticky;top:0}}tr:last-child td{{border-bottom:0}}code{{font-family:ui-monospace,SFMono-Regular,monospace;color:#d7a8ff}}
+.method{{font-weight:700;font-size:12px;padding:4px 7px;border-radius:5px;background:#263652}}.GET{{color:#62e6a5}}.POST{{color:#ffd166}}.PUT,.PATCH{{color:#83b4ff}}.DELETE{{color:#ff8585}}
+.badge{{display:inline-block;margin:4px 6px 4px 0;padding:5px 9px;border-radius:999px;background:#1a2947;color:#c5d7ff;font-size:13px}}
+</style></head><body><main><h1>AgentServices</h1><p>{html.escape(spec.get("info", {}).get("description", "Paid APIs for AI agents."))}</p>
+<div class=\"links\"><span class=\"badge\">OpenAPI {html.escape(str(spec.get("openapi", "3.1.0")))}</span><span class=\"badge\">{len(endpoint_rows)} operations</span><span class=\"badge\">{len(spec.get("paths", {}))} paths</span></div>
+<p class=\"links\"><a href=\"/openapi.json\">Download OpenAPI JSON</a> · <a href=\"/docs-page\">Static docs</a></p>
+<div class=\"table-wrap\"><table><thead><tr><th>Method</th><th>Path</th><th>Description</th><th>Tag</th></tr></thead><tbody>{rows}</tbody></table></div>
+</main></body></html>"""
+
+
+@app.get("/docs", response_class=HTMLResponse, include_in_schema=False)
+async def swagger_docs():
+    return HTMLResponse(_self_hosted_docs_html("AgentServices — OpenAPI Documentation"))
+
+
+@app.get("/redoc", response_class=HTMLResponse, include_in_schema=False)
+async def redoc_docs():
+    return HTMLResponse(_self_hosted_docs_html("AgentServices — ReDoc Documentation"))
 
 
 @app.get("/docs-page", response_class=HTMLResponse)
