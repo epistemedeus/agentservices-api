@@ -3,7 +3,7 @@
   "name": "to.agentservices/agentservices",
   "description": "Paid APIs for AI agents with x402 crypto payments on Base",
   "repository": {
-    "url": "https://github.com/vbkotecha/aiservices-api",
+    "url": "https://github.com/vbkotecha/agentservices-api",
     "source": "github"
   },
   "version": "2.0.0",
