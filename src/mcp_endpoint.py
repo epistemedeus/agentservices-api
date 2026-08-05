@@ -470,13 +470,13 @@ MCP_TOOLS = [
 
 MCP_RESOURCES = [
     {
-        "uri": "aiservices://prices",
+        "uri": "agentservices://prices",
         "name": "Live Crypto Prices",
         "description": "Current crypto prices (BTC, ETH, SOL, XRP)",
         "mimeType": "application/json"
     },
     {
-        "uri": "aiservices://policies",
+        "uri": "agentservices://policies",
         "name": "Dispute Policy Templates",
         "description": "Available dispute resolution policies",
         "mimeType": "application/json"
