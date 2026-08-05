@@ -513,7 +513,7 @@ SERVER_CARD = {
             "macro_indicators": "$0.02"
         }
     },
-    "repository": "https://github.com/vbkotecha/aiservices-api",
+    "repository": "https://github.com/vbkotecha/agentservices-api",
     "documentation": "https://agentservices.to/docs",
     "tools": [{"name": t["name"], "description": t["description"]} for t in MCP_TOOLS]
 }
@@ -853,7 +853,7 @@ async def mcp_well_known():
             },
             "authentication": {"type": "none", "note": "Free tools require no auth. Paid tools use x402 (HTTP 402) payment."},
             "pricing": {"protocol": "x402", "currency": "USDC", "chain": "base"},
-            "repository": "https://github.com/vbkotecha/aiservices-api",
+            "repository": "https://github.com/vbkotecha/agentservices-api",
             "tools_count": len(MCP_TOOLS),
             "links": {
                 "server-card": "https://agentservices.to/.well-known/mcp/server-card.json",

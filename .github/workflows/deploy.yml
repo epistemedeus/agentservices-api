@@ -68,9 +68,9 @@ jobs:
         run: |
           sleep 10
           echo "=== Health Check ==="
-          curl -sf https://api.aiservices.to/health | jq . || echo "::warning::Health check failed"
+          curl -sf https://api.agentservices.to/health | jq . || echo "::warning::Health check failed"
 
       - name: Test free endpoints
         run: |
           echo "=== Testing BTC price ==="
-          curl -sf https://api.aiservices.to/v1/price/BTC | jq -r '.symbol,.price_usd' || echo "::warning::Price endpoint failed"
+          curl -sf https://api.agentservices.to/v1/price/BTC | jq -r '.symbol,.price_usd' || echo "::warning::Price endpoint failed"

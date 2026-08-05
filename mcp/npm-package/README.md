@@ -107,8 +107,8 @@ Free endpoints work immediately — no wallet needed.
 
 - Website: [agentservices.to](https://agentservices.to)
 - Examples: [agentservices.to/examples](https://agentservices.to/examples)
-- MCP endpoint: `agentservices.to/mcp` (SSE transport)
-- GitHub: [github.com/vbkotecha/aiservices-api](https://github.com/vbkotecha/aiservices-api)
+- MCP endpoint: `agentservices.to/mcp` (Streamable HTTP transport)
+- GitHub: [github.com/vbkotecha/agentservices-api](https://github.com/vbkotecha/agentservices-api)
 
 ## License
 

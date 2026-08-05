@@ -90,4 +90,4 @@ AgentKit's `CdpWalletProvider` handles wallet operations. For x402 specifically,
 - MCP: [agentservices.to/mcp](https://agentservices.to/mcp)
 - x402 Discovery: [agentservices.to/.well-known/x402.json](https://agentservices.to/.well-known/x402.json)
 - AgentSkills: [agentservices.to/.well-known/agentskills/agentservices/SKILL.md](https://agentservices.to/.well-known/agentskills/agentservices/SKILL.md)
-- GitHub: [github.com/vbkotecha/aiservices-api](https://github.com/vbkotecha/aiservices-api)
+- GitHub: [github.com/vbkotecha/agentservices-api](https://github.com/vbkotecha/agentservices-api)

@@ -72,7 +72,7 @@ All paid endpoints use the **x402 protocol** (HTTP 402 Payment Required):
 AgentServices also has an MCP endpoint for direct tool integration:
 - **URL:** `https://agentservices.to/mcp`
 - **Tools:** 36 MCP tools covering all endpoints
-- **Transport:** Remote MCP via SSE
+- **Transport:** Remote MCP via Streamable HTTP
 - **Protocol version:** 2026-07-28 (server/discover supported)
 
 ## Use Cases
@@ -105,4 +105,4 @@ AgentServices also has an MCP endpoint for direct tool integration:
 - **OpenAPI Spec:** https://agentservices.to/openapi.json
 - **MCP Registry:** to.aiservices/aiservices
 - **x402 Manifest:** https://agentservices.to/.well-known/x402.json
-- **GitHub:** github.com/vbkotecha/aiservices-api
+- **GitHub:** github.com/vbkotecha/agentservices-api

@@ -142,7 +142,7 @@ result = client.get_indicators("BTC")
 - **API Docs:** https://agentservices.to/docs
 - **OpenAPI Spec:** https://agentservices.to/openapi.json
 - **MCP Endpoint:** https://agentservices.to/mcp
-- **GitHub:** https://github.com/vbkotecha/aiservices-api
+- **GitHub:** https://github.com/vbkotecha/agentservices-api
 
 ## License
 

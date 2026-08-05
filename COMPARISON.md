@@ -19,7 +19,7 @@
 | **Portfolio Intelligence** | ✅ Price + Signal + Risk + Sentiment ($0.10) | ❌ | ❌ | ❌ |
 | **Traditional Finance** | ✅ Stocks, SEC, commodities, FX, economics | ❌ | ❌ | Rare |
 | **Dispute Resolution** | ✅ Policy-based ($0.05) | ❌ | ❌ | ❌ |
-| **MCP Compatible** | ✅ 32 tools via SSE | ✅ MCP | ❌ | Some |
+| **MCP Compatible** | ✅ 32 tools via Streamable HTTP | ✅ MCP | ❌ | Some |
 | **Package Security** | ✅ PyPI/npm scanning | ❌ | ❌ | ❌ |
 | **SEO Research** | ✅ Keyword volume + competition | ❌ | ❌ | ❌ |
 

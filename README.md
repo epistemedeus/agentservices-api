@@ -8,7 +8,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-orange)](https://modelcontextprotocol.io)
 [![Status](https://img.shields.io/badge/status-live-success)](https://agentservices.to/health)
 
-**Live at:** [agentservices.to](https://agentservices.to) | **MCP Server:** `https://agentservices.to/mcp` (SSE) | **Discovery:** `/.well-known/x402`
+**Live at:** [agentservices.to](https://agentservices.to) | **MCP Server:** `https://agentservices.to/mcp` (Streamable HTTP) | **Discovery:** `/.well-known/x402`
 
 ## What is this?
 
@@ -198,7 +198,7 @@ curl -i https://agentservices.to/v1/indicators/BTC
   "mcpServers": {
     "agentservices": {
       "url": "https://agentservices.to/mcp",
-      "transport": "sse"
+      "transport": "streamable-http"
     }
   }
 }

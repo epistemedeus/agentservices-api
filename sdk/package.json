@@ -24,7 +24,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vbkotecha/aiservices-api"
+    "url": "https://github.com/vbkotecha/agentservices-api"
   },
   "homepage": "https://agentservices.to",
   "dependencies": {}

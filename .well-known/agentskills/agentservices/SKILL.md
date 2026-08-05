@@ -20,7 +20,7 @@ metadata:
   version: "5.3.0"
   website: "https://agentservices.to"
   api_base_url: "https://agentservices.to"
-  repository: "https://github.com/vbkotecha/aiservices-api"
+  repository: "https://github.com/vbkotecha/agentservices-api"
   documentation: "https://agentservices.to/docs"
   payment_protocol: "x402"
   payment_currency: "USDC"
@@ -139,7 +139,7 @@ print(response.json())
 | POST /v1/complete | $0.03 | Text completion |
 
 ### MCP Integration
-Remote MCP transport via SSE:
+Remote MCP transport via Streamable HTTP:
 ```
 MCP_URL=https://agentservices.to/mcp
 ```
@@ -165,5 +165,5 @@ AgentServices uses the x402 protocol for micropayments. To use paid endpoints:
 ## Support
 
 - Docs: https://agentservices.to/docs
-- GitHub: https://github.com/vbkotecha/aiservices-api
+- GitHub: https://github.com/vbkotecha/agentservices-api
 - MCP: https://agentservices.to/mcp

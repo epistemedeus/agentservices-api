@@ -67,7 +67,7 @@ app = FastAPI(
     },
     license_info={
         "name": "MIT",
-        "url": "https://github.com/vbkotecha/aiservices-api",
+        "url": "https://github.com/vbkotecha/agentservices-api",
     },
     description="""Paid APIs for AI agents — data, intelligence, inference, and more.
 Crypto market data, DeFi yields, DEX quotes, prediction markets, news, search, IP geolocation,
@@ -1162,7 +1162,7 @@ curl https://agentservices.to/v1/indicators/BTC
 
 - [API Docs](https://agentservices.to/docs)
 - [Examples](https://agentservices.to/examples)
-- [GitHub](https://github.com/vbkotecha/aiservices-api)
+- [GitHub](https://github.com/vbkotecha/agentservices-api)
 - [OpenAPI Spec](https://agentservices.to/openapi.json)
 - [x402 Manifest](https://agentservices.to/.well-known/x402.json)
 """
@@ -1433,7 +1433,7 @@ async def x402_manifest():
         "payTo": X402_WALLET,
         "contact": "https://github.com/vbkotecha",
         "website": "https://agentservices.to",
-        "repository": "https://github.com/vbkotecha/aiservices-api",
+        "repository": "https://github.com/vbkotecha/agentservices-api",
         "homepage": "https://agentservices.to",
         "license": "MIT",
         "spec": "x402-service-manifest/1",
@@ -1453,7 +1453,7 @@ async def x402_service_json():
         "payment": {"address": X402_WALLET, "chain": "base", "facilitator": X402_FACILITATOR_URL},
         "endpoint": "https://agentservices.to",
         "website": "https://agentservices.to",
-        "repository": "https://github.com/vbkotecha/aiservices-api",
+        "repository": "https://github.com/vbkotecha/agentservices-api",
         "contact": "https://github.com/vbkotecha",
         "license": "MIT",
     }
@@ -1534,7 +1534,7 @@ async def agent_json():
             ],
         },
         "docs": "https://agentservices.to/docs",
-        "github": "https://github.com/vbkotecha/aiservices-api",
+        "github": "https://github.com/vbkotecha/agentservices-api",
         "wallet": X402_WALLET,
     }
 
@@ -1630,7 +1630,7 @@ async def x402_json_manifest():
         "currency": "USDC",
         "website": "https://agentservices.to",
         "apiBaseUrl": "https://agentservices.to",
-        "repository": "https://github.com/vbkotecha/aiservices-api",
+        "repository": "https://github.com/vbkotecha/agentservices-api",
         "documentation": "https://agentservices.to/docs",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "services": paid_services + free_services,
@@ -1837,7 +1837,7 @@ MCP config for Claude Desktop:
         "## Links",
         "- API Docs (Swagger): https://agentservices.to/docs",
         "- Integration Examples: https://agentservices.to/examples",
-        "- GitHub: https://github.com/vbkotecha/aiservices-api",
+        "- GitHub: https://github.com/vbkotecha/agentservices-api",
         "- x402 Manifest: https://agentservices.to/.well-known/x402.json",
         "",
         "## SDK",
@@ -2122,7 +2122,7 @@ async def llms_txt():
         "## Links",
         "- API Docs: https://agentservices.to/docs",
         "- Examples: https://agentservices.to/examples",
-        "- GitHub: https://github.com/vbkotecha/aiservices-api",
+        "- GitHub: https://github.com/vbkotecha/agentservices-api",
     ]
     from starlette.responses import PlainTextResponse
     return PlainTextResponse(content="\n".join(lines), media_type="text/plain")
@@ -2164,7 +2164,7 @@ async def robots_txt():
         "# /llms.txt — Machine-readable service description",
         "# /llms-full.txt — Full site content in markdown",
         "# /openapi.json — OpenAPI 3.1 specification",
-        "# /mcp — MCP server (SSE)",
+        "# /mcp — MCP server (Streamable HTTP)",
         "# /sitemap.xml — Sitemap",
         "# /feed.json — JSON Feed",
         "# /.well-known/x402 — x402 payment discovery",
@@ -2220,7 +2220,7 @@ metadata:
   version: "5.3.0"
   website: "https://agentservices.to"
   api_base_url: "https://agentservices.to"
-  repository: "https://github.com/vbkotecha/aiservices-api"
+  repository: "https://github.com/vbkotecha/agentservices-api"
   documentation: "https://agentservices.to/docs"
   payment_protocol: "x402"
   payment_currency: "USDC"
@@ -2300,7 +2300,7 @@ Add to claude_desktop_config.json:
 ### Cursor / Cline / Generic MCP Client
 
     Server URL: https://agentservices.to/mcp
-    Transport: SSE (Server-Sent Events)
+    Transport: Streamable HTTP
 
 37 tools available covering all endpoints.
 
@@ -2590,7 +2590,7 @@ Transport: Streamable HTTP</code></pre>
 
 <section>
 <h2>Links</h2>
-<p><a href="/docs">Swagger/OpenAPI Docs</a> · <a href="/llms.txt">llms.txt</a> · <a href="/health">Health Check</a> · <a href="https://github.com/vbkotecha/aiservices-api">GitHub</a></p>
+<p><a href="/docs">Swagger/OpenAPI Docs</a> · <a href="/llms.txt">llms.txt</a> · <a href="/health">Health Check</a> · <a href="https://github.com/vbkotecha/agentservices-api">GitHub</a></p>
 </section>
 
 <div class="footer">
@@ -3106,7 +3106,7 @@ curl https://agentservices.to/v1/search?q=base+chain
 <a href="/">← Back to AgentServices</a> | 
 <a href="/docs">API Docs</a> | 
 <a href="/openapi.json">OpenAPI Spec</a> | 
-<a href="https://github.com/vbkotecha/aiservices-api">GitHub</a>
+<a href="https://github.com/vbkotecha/agentservices-api">GitHub</a>
 </p>
 <p style="margin-top:8px;color:#555;font-size:0.8em">
 AgentServices — Paid APIs for AI agents. 53 services. x402/USDC on Base.

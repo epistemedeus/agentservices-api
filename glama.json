@@ -7,7 +7,7 @@
   "license": "MIT",
   "maintainers": ["vbkotecha"],
   "server": {
-    "transport": "sse",
+    "transport": "streamable-http",
     "url": "https://agentservices.to/mcp"
   },
   "tools": [

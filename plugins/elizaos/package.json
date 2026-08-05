@@ -23,11 +23,11 @@
   "homepage": "https://agentservices.to",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vbkotecha/aiservices-api",
+    "url": "https://github.com/vbkotecha/agentservices-api",
     "directory": "plugins/elizaos"
   },
   "bugs": {
-    "url": "https://github.com/vbkotecha/aiservices-api/issues"
+    "url": "https://github.com/vbkotecha/agentservices-api/issues"
   },
   "peerDependencies": {
     "@elizaos/core": ">=1.0.0"
