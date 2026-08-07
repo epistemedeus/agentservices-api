@@ -52,7 +52,17 @@ For MCP-compatible clients, add the hosted Streamable HTTP server:
 
 For direct integrations, use the [OpenAPI docs](https://api.agentservices.to/docs) or the [JavaScript SDK](https://www.npmjs.com/package/@agentservices/client).
 
-## 5. Run a no-spend buyer proof
+## 5. Verify hosted MCP discovery
+
+Verify the hosted Streamable HTTP MCP server and its live tool catalog without an API key, wallet, or paid call:
+
+```bash
+python3 examples/mcp_discovery_buyer_proof.py
+```
+
+It verifies the server protocol and confirms free tools including `crypto_prices`, `fear_greed`, and `agent_context` from the live MCP catalog.
+
+## 6. Run a no-spend x402 buyer proof
 
 Verify a real free response and decode the live x402 requirements for a paid token-risk report—without signing or settling any payment:
 
@@ -62,7 +72,7 @@ python3 examples/token_risk_buyer_proof.py BTC
 
 The script uses the canonical `api.agentservices.to` domain, confirms the free price surface, then verifies and displays the exact Base/USDC payment challenge for `GET /v1/token-risk/BTC`.
 
-## 6. Start with one paid call
+## 7. Start with one paid call
 
 ```text
 Goal: produce a concise research brief on the Base ecosystem.
