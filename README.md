@@ -47,7 +47,7 @@ AgentServices is the monetized API layer for AI agents. No API keys, no subscrip
 ### Paid — Synthesis APIs (x402)
 | Endpoint | Price | Description |
 |----------|-------|-------------|
-| `GET /v1/token-risk/:symbol` | $0.03 | Risk assessment for any token (rug pull, liquidity, contract audit) |
+| `GET /v1/token-risk/{token}` | $0.03 | Snapshot-based volatility, liquidity-proxy, and market-cap risk score |
 | `GET /v1/crypto-signals` | $0.04 | Aggregated buy/sell signals across multiple indicators |
 | `GET /v1/yield-comparison` | $0.03 | Compare yields across protocols with risk-adjusted returns |
 | `GET /v1/hn-sentiment` | $0.02 | Hacker News sentiment analysis for tech topics |
@@ -92,8 +92,10 @@ curl https://agentservices.to/v1/prices?symbols=BTC,ETH,SOL
 # Get technical signals for entry/exit ($0.04)
 curl https://agentservices.to/v1/crypto-signals
 
-# Check token risk before buying ($0.03)
-curl https://agentservices.to/v1/token-risk/PEPE
+# Check snapshot-based token risk before buying ($0.03)
+# Use a CoinGecko-compatible identifier for portable direct HTTP calls.
+curl https://api.agentservices.to/v1/token-risk/pepe
+# Contract and payment-receipt guidance: docs/token-risk-outcome-contract.md
 ```
 
 ### DeFi Yield Optimizer

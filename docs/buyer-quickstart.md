@@ -70,7 +70,7 @@ Verify a real free response and decode the live x402 requirements for a paid tok
 python3 examples/token_risk_buyer_proof.py BTC
 ```
 
-The script uses the canonical `api.agentservices.to` domain, confirms the free price surface, then verifies and displays the exact Base/USDC payment challenge for `GET /v1/token-risk/BTC`.
+The script uses the canonical `api.agentservices.to` domain, confirms the free price surface, then verifies and displays the exact Base/USDC payment challenge for `GET /v1/token-risk/BTC`. Read the [Token Risk Outcome Contract](token-risk-outcome-contract.md) for the paid result schema, method, provenance, limits, and buyer-retained receipt guidance.
 
 ## 7. Start with one paid call
 
