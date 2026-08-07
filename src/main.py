@@ -150,7 +150,7 @@ _BAZAAR_ENDPOINT_INFO = {
     "/v1/defi-strategy": {"method": "GET", "route": "/v1/defi-strategy", "path_params": {}, "query": {}, "body": None,
         "output_example": {"top_yields": [{"protocol": "Aave", "apy": 4.5}], "tvl_comparison": {}, "risk_assessment": "MODERATE"}},
     "/v1/market-pulse": {"method": "GET", "route": "/v1/market-pulse", "path_params": {}, "query": {}, "body": None,
-        "output_example": {"fear_greed": 72, "trending": ["BTC", "SOL"], "direction": "BULLISH"}},
+        "output_example": {"research_type": "market_pulse", "modules": {"sentiment": {"fear_greed_value": 72, "fear_greed_label": "Greed", "interpretation": "Greed — market confident"}, "trending": {"data": []}}, "errors": [], "timestamp": "2026-08-07T00:00:00Z", "synthesis": {"market_direction": "BULLISH — Greed building. Trend continuation likely.", "sentiment_score": 72, "data_modules_active": 2, "modules_available": ["sentiment", "trending"]}, "pricing_advantage": "Informational pricing comparison."}},
     "/v1/onchain-overview": {"method": "GET", "route": "/v1/onchain-overview", "path_params": {}, "query": {}, "body": None,
         "output_example": {"whales": [], "exchange_flows": {}, "stablecoin_flows": {}, "defi_tvl": {}}},
     "/v1/arbitrage": {"method": "GET", "route": "/v1/arbitrage", "path_params": {}, "query": {"symbol": "BTC"}, "body": None,
