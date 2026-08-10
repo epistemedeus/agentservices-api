@@ -96,7 +96,11 @@ The proof must receive HTTP 402, show the declared amount/network/recipient, and
 
 For a documented snapshot contract—including partial-module behavior, source boundaries, synthesis limits, and x402 receipt guidance—read the [Market Pulse Outcome Contract](market-pulse-outcome-contract.md).
 
-## 10. Build a buyer-retained receipt
+## 10. Understand the research-brief outcome
+
+For a paid, source-auditable web-research brief, read the [Research Brief Outcome Contract](research-brief-outcome-contract.md). It documents source/extraction status, keyword-synthesis limits, no-result behavior, and buyer-retained x402 evidence.
+
+## 11. Build a buyer-retained receipt
 
 After a successful paid retry, turn the original `payment-required` value, returned response body, and wallet transaction or authorization reference into a portable procurement receipt:
 
@@ -109,7 +113,7 @@ python3 examples/build_x402_receipt.py \\
 
 The builder does not sign or settle payments. It records quoted terms and hashes the buyer-held challenge and result for later verification.
 
-## 11. Start with one paid call
+## 12. Start with one paid call
 
 ```text
 Goal: produce a concise research brief on the Base ecosystem.
