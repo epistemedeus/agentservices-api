@@ -387,8 +387,12 @@ X402_ENABLED = False
 X402_ERROR = "Not initialized"
 try:
     from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption, CreateHeadersAuthProvider
-    from x402.http.middleware.fastapi import PaymentMiddlewareASGI
+    from x402.http.middleware.fastapi import PaymentMiddlewareASGI, FastAPIAdapter
     from x402.http.types import RouteConfig
+
+    # The upstream FastAPI adapter defaults get_body() to None. Expose the
+    # body captured by DynamicBodyMiddleware to DynamicPrice callbacks.
+    FastAPIAdapter.get_body = lambda self: self._request.scope.get("state", {}).get("dynamic_body")
     from x402.mechanisms.evm.exact import ExactEvmServerScheme
     from x402.server import x402ResourceServer
     from x402.extensions.bazaar import bazaar_resource_server_extension
@@ -743,9 +747,7 @@ try:
     # DynamicPrice is evaluated by x402 with the request context before 402.
     from x402.http.types import HTTPRequestContext
     def _dynamic_chat_price(context):
-        request = getattr(context.adapter, "_request", None)
-        scope_state = getattr(request, "scope", {}).get("state", {}) if request else {}
-        body = scope_state.get("dynamic_body", {})
+        body = context.adapter.get_body() or {}
         model = body.get("model") or "auto"
         messages = body.get("messages", [])
         if model == "auto":
