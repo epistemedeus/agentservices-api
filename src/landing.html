@@ -51,7 +51,7 @@
       "name": "How do AI agents pay for API calls?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Agents use the x402 protocol to pay with USDC on Base (Layer 2). Each paid endpoint returns a 402 Payment Required response with payment details. The agent signs an EIP-3009 transfer and resubmits. Prices range from $0.002 to $0.25 per call."
+        "text": "Agents use the x402 protocol to pay with USDC on Base (Layer 2). Each paid endpoint returns a 402 Payment Required response with payment details. The agent signs an EIP-3009 transfer and resubmits. Fixed data routes publish their price; inference quotes depend on the selected model and request size."
       }
     },
     {
@@ -1260,7 +1260,7 @@ footer {
         agents can <span class="gradient-word">pay for directly.</span>
       </h1>
       <p class="hero-tagline">
-        One HTTP and MCP surface for market data, research, on-chain signals, and automation. Pay per call when the workflow needs it.
+        One HTTP and MCP surface for market data, research, on-chain signals, and inference. Pay per call when the workflow needs it.
       </p>
       <div class="hero-actions">
         <a href="#quickstart" class="btn btn-primary">
@@ -1307,8 +1307,8 @@ footer {
       <h3>Read the market</h3>
       <p>Prices, indicators, sentiment, whale activity, exchange flows, DeFi TVL, stablecoin flows, and cross-asset context.</p>
       <div class="feature-meta">
-        <span class="tag tag-free">FREE</span>
-        <span class="tag tag-paid">$0.02</span>
+        <span class="tag tag-free">FREE DISCOVERY</span>
+        <span class="tag tag-paid">PAID ANALYSIS</span>
       </div>
     </div>
 
@@ -1318,8 +1318,8 @@ footer {
       <h3>Call models on demand</h3>
       <p>An OpenAI-compatible inference gateway for agent workflows that need a response, not another account.</p>
       <div class="feature-meta">
-        <span class="tag tag-paid">$0.03</span>
-        <span class="tag tag-paid">2 endpoints</span>
+        <span class="tag tag-paid">DYNAMIC QUOTE</span>
+        <span class="tag tag-paid">2 ENDPOINTS</span>
       </div>
     </div>
 
@@ -1395,7 +1395,7 @@ footer {
   <div class="section-header reveal">
     <div class="section-eyebrow">Catalog</div>
     <h2 class="section-title">Call the route.<br><em>See the price.</em></h2>
-    <p class="section-subtitle">Start with free requests. Paid routes return HTTP 402 with the payment details your client needs.</p>
+    <p class="section-subtitle">Start with free requests. Paid routes return HTTP 402 with the payment details your client needs. Inference quotes depend on the selected model and request size.</p>
   </div>
 
   <div class="endpoints-wrap reveal">
@@ -1410,8 +1410,8 @@ footer {
     <div class="endpoint-row"><div class="method-badge method-get">GET</div><div class="endpoint-info"><h4>/v1/news</h4><p>Latest crypto and blockchain news</p></div><div></div><div class="endpoint-price free">Free</div></div>
 
     <!-- INFERENCE -->
-    <div class="endpoint-row"><div class="method-badge method-post">POST</div><div class="endpoint-info"><h4>/v1/inference</h4><p>LLM chat completions — GPT-5.4, GPT-5.4-mini, GPT-5.5</p></div><div></div><div class="endpoint-price">$0.03</div></div>
-    <div class="endpoint-row"><div class="method-badge method-post">POST</div><div class="endpoint-info"><h4>/v1/complete</h4><p>Quick text completion — send a prompt, get a response</p></div><div></div><div class="endpoint-price">$0.03</div></div>
+    <div class="endpoint-row"><div class="method-badge method-post">POST</div><div class="endpoint-info"><h4>/v1/inference</h4><p>OpenAI-compatible chat completions with model and request-based pricing</p></div><div></div><div class="endpoint-price">Dynamic</div></div>
+    <div class="endpoint-row"><div class="method-badge method-post">POST</div><div class="endpoint-info"><h4>/v1/complete</h4><p>Quick text completion with the same paid request flow</p></div><div></div><div class="endpoint-price">Dynamic</div></div>
 
     <!-- CRYPTO DATA -->
     <div class="endpoint-row"><div class="method-badge method-get">GET</div><div class="endpoint-info"><h4>/v1/indicators/{symbol}</h4><p>RSI, Bollinger Bands, ATR, Support/Resistance</p></div><div></div><div class="endpoint-price">$0.02</div></div>
