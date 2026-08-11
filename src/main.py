@@ -90,6 +90,8 @@ class DynamicBodyMiddleware(BaseHTTPMiddleware):
                 request.state.dynamic_body = {}
         return await call_next(request)
 
+app.add_middleware(DynamicBodyMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -97,8 +99,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.add_middleware(DynamicBodyMiddleware)
 
 # --- Security Headers + Bazaar Discovery Enrichment ---
 # x402 indexers (CDP Bazaar / agentic.market) validate resources by GETting
@@ -759,6 +759,8 @@ try:
     # Use function middleware so request body can be parsed by the dynamic price hook.
     from x402.http.middleware.fastapi import payment_middleware
     app.middleware("http")(payment_middleware(payment_routes, payment_server))
+    # Register after x402 so Starlette executes it before x402 on the request path.
+    app.add_middleware(DynamicBodyMiddleware)
     # Must wrap x402 so the request body is priced before the payment challenge.
     print(f"[x402] Payment middleware enabled on {X402_NETWORK_LABEL} — disputes ($0.05), indicators/yields/correlation ($0.02–$0.03), metadata/search ($0.01), marketing ($0.03–$0.05), on-chain data ($0.02–$0.03)", flush=True)
     X402_ENABLED = True
