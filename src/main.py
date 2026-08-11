@@ -48,9 +48,6 @@ from synthesis_data import (
 )
 from inference_gateway import list_models as list_inference_models, inference, quick_complete, chat_completions, list_all_openrouter_models
 from pricing_cache import calculate_price as calc_dynamic_price, fetch_pricing, pricing_summary
-
-# Populated during x402 initialization; read by dynamic pricing middleware.
-_PAYMENT_ROUTES = {}
 from tradfi_data import get_stock_quote, get_stock_history, get_sec_filings, get_commodities, get_economic_indicators, get_fx_rates
 from utility_data import extract_web_content, scan_package_security, seo_keywords
 from agent_memory import store as mem_store, retrieve as mem_retrieve, list_keys as mem_list, delete as mem_delete, search as mem_search
@@ -83,6 +80,17 @@ LLM inference gateway, marketing intelligence, and more.
 All paid endpoints use x402 protocol with USDC on Base.
 """,
 )
+
+class DynamicBodyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if request.method == "POST" and request.url.path in ("/v1/chat/completions", "/v1/inference", "/v1/complete"):
+            try:
+                request.state.dynamic_body = json.loads(await request.body())
+            except Exception:
+                request.state.dynamic_body = {}
+        return await call_next(request)
+
+app.add_middleware(DynamicBodyMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -288,32 +296,6 @@ def _build_bazaar_extension(route_path, route_desc):
             "routeTemplate": info_data["route"],
         }
     return base
-
-class DynamicPricingMiddleware(BaseHTTPMiddleware):
-    """Set the x402 quote from OpenRouter provider cost plus 5%."""
-    async def dispatch(self, request, call_next):
-        if request.url.path in ("/v1/chat/completions", "/v1/inference", "/v1/complete") and request.method == "POST":
-            try:
-                payload = json.loads(await request.body())
-                model = payload.get("model") or "auto"
-                messages = payload.get("messages", [])
-                max_tokens = payload.get("max_tokens", 1000)
-                if model == "auto":
-                    from inference_gateway import _route_model
-                    model = _route_model("auto", messages, payload.get("profile", "auto"))
-                price = calc_dynamic_price(model, messages, max_tokens)
-                for route_key in ("POST /v1/chat/completions", "POST /v1/inference", "POST /v1/complete"):
-                    route = _PAYMENT_ROUTES.get(route_key)
-                    if route:
-                        for option in route.accepts:
-                            if hasattr(option, "price"):
-                                option.price = price
-                            elif hasattr(option, "amount"):
-                                option.amount = price
-                        break
-            except Exception as exc:
-                print(f"[pricing] quote fallback: {exc}", flush=True)
-        return await call_next(request)
 
 @app.middleware("http")
 async def enrich_402_bazaar(request, call_next):
@@ -757,16 +739,27 @@ try:
         ),
     }
 
-    # Expose the route map to the pre-payment dynamic pricing middleware.
-    _PAYMENT_ROUTES.update(payment_routes)
+    # DynamicPrice is evaluated by x402 with the request context before 402.
+    from x402.http.types import HTTPRequestContext
+    def _dynamic_chat_price(context):
+        request = getattr(context.adapter, "_request", None)
+        body = getattr(getattr(request, "state", None), "dynamic_body", None) or {}
+        model = body.get("model") or "auto"
+        messages = body.get("messages", [])
+        if model == "auto":
+            from inference_gateway import _route_model
+            model = _route_model("auto", messages, body.get("profile", "auto"))
+        return calc_dynamic_price(model, messages, body.get("max_tokens", 1000))
+    for route_key in ("POST /v1/chat/completions", "POST /v1/inference", "POST /v1/complete"):
+        route = payment_routes.get(route_key)
+        if route:
+            for option in route.accepts:
+                option.price = _dynamic_chat_price
 
-    app.add_middleware(
-        PaymentMiddlewareASGI,
-        routes=payment_routes,
-        server=payment_server,
-    )
+    # Use function middleware so request body can be parsed by the dynamic price hook.
+    from x402.http.middleware.fastapi import payment_middleware
+    app.middleware("http")(payment_middleware(payment_routes, payment_server))
     # Must wrap x402 so the request body is priced before the payment challenge.
-    app.add_middleware(DynamicPricingMiddleware)
     print(f"[x402] Payment middleware enabled on {X402_NETWORK_LABEL} — disputes ($0.05), indicators/yields/correlation ($0.02–$0.03), metadata/search ($0.01), marketing ($0.03–$0.05), on-chain data ($0.02–$0.03)", flush=True)
     X402_ENABLED = True
     X402_ERROR = None
