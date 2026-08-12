@@ -93,21 +93,147 @@ def _common_crawl_rank(domain):
     }
 
 
+def _exa_key():
+    return os.getenv("EXA_API_KEY", "").strip()
+
+
+def _exa_backlinks(domain, limit=25):
+    """Return externally discoverable pages that mention the target domain.
+
+    Exa search is a discovery source, not a verified backlink index. We only
+    label a result as a backlink when fetched text contains the target domain.
+    """
+    key = _exa_key()
+    if not key:
+        return {"configured": False, "pages": [], "error": "not_configured"}
+    query = f'pages linking to or documenting "{domain}"'
+    payload = {"query": query, "numResults": min(max(limit, 1), 50), "contents": {"text": {"maxCharacters": 12000}}}
+    req = urllib.request.Request(
+        "https://api.exa.ai/search",
+        data=json.dumps(payload).encode(),
+        headers={"x-api-key": key, "Content-Type": "application/json", "User-Agent": "AgentServices/1.0"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        data = json.loads(resp.read().decode(errors="replace"))
+    pages = []
+    seen = set()
+    needle = domain.lower()
+    for item in data.get("results", []):
+        url = (item.get("url") or "").strip()
+        text = item.get("text") or ""
+        if not url or url.lower().split("/", 3)[2:3] == [domain]:
+            continue
+        # Exa's text is the evidence we can inspect; do not fabricate links
+        # from titles or search snippets alone.
+        if needle not in text.lower():
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        pages.append({
+            "url": url,
+            "title": item.get("title", ""),
+            "published_date": item.get("publishedDate") or item.get("published_date"),
+            "source": "exa",
+            "evidence": "target domain present in indexed page content",
+        })
+    return {"configured": True, "query": query, "pages": pages, "count": len(pages)}
+
+
+def _github_references(domain, limit=30):
+    """Find public GitHub pages that reference a domain."""
+    query = urllib.parse.quote(f'"{domain}"')
+    req = urllib.request.Request(
+        f"https://api.github.com/search/repositories?q={query}&per_page={min(limit, 100)}",
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "AgentServices/1.0"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read().decode(errors="replace"))
+    pages = []
+    for item in data.get("items", []):
+        url = item.get("html_url")
+        if url:
+            pages.append({
+                "url": url,
+                "title": item.get("full_name", ""),
+                "description": item.get("description", ""),
+                "source": "github_repository_search",
+                "evidence": "repository metadata matched target domain query",
+                "stars": item.get("stargazers_count", 0),
+            })
+    return {"query": f'"{domain}"', "pages": pages, "count": len(pages)}
+
+
+def _npm_references(domain, limit=30):
+    """Find npm packages whose registry metadata references a domain."""
+    query = urllib.parse.quote(domain)
+    data = _fetch_json(f"https://registry.npmjs.org/-/v1/search?text={query}&size={min(limit, 250)}", timeout=15)
+    pages = []
+    for item in data.get("objects", []):
+        package = item.get("package", {})
+        name = package.get("name")
+        if not name:
+            continue
+        pages.append({
+            "url": f"https://www.npmjs.com/package/{urllib.parse.quote(name, safe='@/')}",
+            "title": name,
+            "description": package.get("description", ""),
+            "source": "npm_registry_search",
+            "evidence": "npm registry search matched target domain",
+            "version": package.get("version"),
+        })
+    return {"query": domain, "pages": pages, "count": len(pages)}
+
+
 def backlink_intelligence(domain: str, site_url: str | None = None):
     domain = domain.strip().lower().replace("https://", "").replace("http://", "").split("/", 1)[0]
+    if not domain or "." not in domain or any(ch in domain for ch in " <>\\\"'"):
+        raise ValueError("domain must be a hostname")
     site_url = site_url or f"https://{domain}/"
-    result = {"domain": domain, "sources": {}, "disclaimer": "Bing links are for a verified site; Common Crawl rank is a domain-level web-graph signal, not an exact backlink count."}
+    result = {
+        "domain": domain,
+        "status": "ok",
+        "sources": {},
+        "discovered_pages": [],
+        "disclaimer": "Bing Webmaster is authoritative only for a verified site. Exa pages are indexed references whose content contains the target domain; they are not guaranteed live hyperlinks. Common Crawl rank is a domain-level web-graph signal, not an exact backlink count.",
+    }
     try:
         pages, total_pages = _bing_pages(site_url, "GetLinkCounts")
         result["bing"] = {"site_url": site_url, "pages": pages, "total_pages": total_pages, "configured": bool(_bing_key())}
         result["sources"]["bing_webmaster"] = "verified-site inbound link counts"
+        result["discovered_pages"].extend(pages)
     except Exception as exc:
-        result["bing"] = {"configured": bool(_bing_key()), "error": type(exc).__name__}
+        result["bing"] = {"site_url": site_url, "configured": bool(_bing_key()), "error": type(exc).__name__}
+    try:
+        result["exa"] = _exa_backlinks(domain)
+        result["sources"]["exa"] = "indexed pages with target-domain evidence"
+        result["discovered_pages"].extend(result["exa"].get("pages", []))
+    except Exception as exc:
+        result["exa"] = {"configured": bool(_exa_key()), "pages": [], "error": type(exc).__name__}
+    for name, loader, label in (
+        ("github", _github_references, "public GitHub repository references"),
+        ("npm", _npm_references, "npm registry package references"),
+    ):
+        try:
+            result[name] = loader(domain)
+            result["sources"][name] = label
+            result["discovered_pages"].extend(result[name].get("pages", []))
+        except Exception as exc:
+            result[name] = {"pages": [], "error": type(exc).__name__}
     try:
         result["common_crawl"] = _common_crawl_rank(domain)
         result["sources"]["common_crawl"] = "domain-level harmonic centrality/PageRank"
     except Exception as exc:
         result["common_crawl"] = {"error": type(exc).__name__}
+    # Stable deduplication across providers.
+    unique = {}
+    for page in result["discovered_pages"]:
+        url = page.get("url") or page.get("source") or repr(page)
+        unique.setdefault(url, page)
+    result["discovered_pages"] = list(unique.values())
+    if not result["discovered_pages"]:
+        result["status"] = "insufficient_data"
     return result
 
 
