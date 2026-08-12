@@ -11,6 +11,7 @@ import urllib.parse
 import json
 import re
 from datetime import datetime
+import os
 
 
 def _fetch(url, timeout=10, headers=None):
@@ -26,6 +27,88 @@ def _fetch(url, timeout=10, headers=None):
 def _fetch_json(url, timeout=10, headers=None):
     """Fetch JSON from URL."""
     return json.loads(_fetch(url, timeout, headers))
+
+
+# ============================================================
+# BACKLINK INTELLIGENCE
+# Bing Webmaster links for verified sites; Common Crawl rank as a
+# separate domain-level signal. Credentials are runtime-only.
+# ============================================================
+def _bing_key():
+    key = os.getenv("BING_WEBMASTER_API_KEY", "").strip()
+    if key:
+        return key
+    for path in ("/root/.letta/keys/bing-webmaster.key", "/root/.letta/keys/bing_webmaster.key"):
+        try:
+            return open(path, encoding="utf-8").read().strip()
+        except OSError:
+            pass
+    return ""
+
+
+def _bing_json(method, params):
+    key = _bing_key()
+    if not key:
+        return None
+    query = urllib.parse.urlencode({**params, "apikey": key})
+    url = f"https://ssl.bing.com/webmaster/api.svc/json/{method}?{query}"
+    return _fetch_json(url, timeout=15)
+
+
+def _bing_pages(site_url, method, page_limit=5):
+    rows = []
+    total_pages = None
+    for page in range(page_limit):
+        payload = _bing_json(method, {"siteUrl": site_url, "page": page})
+        if not payload:
+            break
+        data = payload.get("d", payload)
+        items = data.get("Links", []) if method == "GetLinkCounts" else data.get("Details", [])
+        rows.extend(items)
+        total_pages = data.get("TotalPages", total_pages)
+        if total_pages is None or page + 1 >= total_pages:
+            break
+    return rows, total_pages
+
+
+def _common_crawl_rank(domain):
+    # Common Crawl publishes a compact lookup artifact for the top 1,000
+    # domains. Do not download the multi-GB raw rank archive per request.
+    payload = _fetch_json("https://commoncrawl.github.io/cc-webgraph-statistics/domain-lookup.json", timeout=15)
+    reverse = ".".join(reversed(domain.lower().rstrip(".").split(".")))
+    values = payload.get("domains", {}).get(reverse)
+    if not values:
+        return {"found": False, "scope": "top-ranked domains only", "releases": payload.get("releases", [])}
+    releases = payload.get("releases", [])
+    hc = values[0] if values else []
+    pr = values[1] if len(values) > 1 else []
+    latest = len(releases) - 1
+    return {
+        "found": True,
+        "scope": "top-ranked domains only",
+        "release": releases[latest] if latest >= 0 else None,
+        "harmonic_centrality": hc[latest] if latest < len(hc) else None,
+        "pagerank": pr[latest] if latest < len(pr) else None,
+        "history": [{"release": r, "harmonic_centrality": hc[i] if i < len(hc) else None, "pagerank": pr[i] if i < len(pr) else None} for i, r in enumerate(releases)],
+    }
+
+
+def backlink_intelligence(domain: str, site_url: str | None = None):
+    domain = domain.strip().lower().replace("https://", "").replace("http://", "").split("/", 1)[0]
+    site_url = site_url or f"https://{domain}/"
+    result = {"domain": domain, "sources": {}, "disclaimer": "Bing links are for a verified site; Common Crawl rank is a domain-level web-graph signal, not an exact backlink count."}
+    try:
+        pages, total_pages = _bing_pages(site_url, "GetLinkCounts")
+        result["bing"] = {"site_url": site_url, "pages": pages, "total_pages": total_pages, "configured": bool(_bing_key())}
+        result["sources"]["bing_webmaster"] = "verified-site inbound link counts"
+    except Exception as exc:
+        result["bing"] = {"configured": bool(_bing_key()), "error": type(exc).__name__}
+    try:
+        result["common_crawl"] = _common_crawl_rank(domain)
+        result["sources"]["common_crawl"] = "domain-level harmonic centrality/PageRank"
+    except Exception as exc:
+        result["common_crawl"] = {"error": type(exc).__name__}
+    return result
 
 
 # ============================================================

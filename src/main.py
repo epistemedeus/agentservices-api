@@ -50,7 +50,7 @@ from synthesis_data import (
 from inference_gateway import list_models as list_inference_models, inference, quick_complete, chat_completions, list_all_openrouter_models
 from pricing_cache import calculate_price as calc_dynamic_price, fetch_pricing, pricing_summary
 from tradfi_data import get_stock_quote, get_stock_history, get_sec_filings, get_commodities, get_economic_indicators, get_fx_rates
-from utility_data import extract_web_content, scan_package_security, seo_keywords
+from utility_data import extract_web_content, scan_package_security, seo_keywords, backlink_intelligence
 from agent_memory import store as mem_store, retrieve as mem_retrieve, list_keys as mem_list, delete as mem_delete, search as mem_search
 from skill_packs import crypto_dossier, stock_dossier, market_overview, available_skills
 from media_gateway import generate_image, text_to_speech, multi_model_inference, list_all_models
@@ -255,6 +255,8 @@ _BAZAAR_ENDPOINT_INFO = {
         "output_example": [{"repo": "langchain-ai/langchain", "stars": 95000, "language": "Python", "description": "Building applications with LLMs"}]},
     "/v1/seo/keywords": {"method": "GET", "route": "/v1/seo/keywords", "path_params": {}, "query": {"domain": "example.com", "topic": "AI"}, "body": None,
         "output_example": [{"keyword": "AI API", "volume": 12000, "difficulty": 45}]},
+    "/v1/backlinks": {"method": "GET", "route": "/v1/backlinks", "path_params": {}, "query": {"domain": "example.com", "site_url": "https://example.com/"}, "body": None,
+        "output_example": {"domain": "example.com", "bing": {"pages": []}, "common_crawl": {"found": False}},
     "/v1/models/all": {"method": "GET", "route": "/v1/models/all", "path_params": {}, "query": {}, "body": None,
         "output_example": {"providers": ["openai", "anthropic", "google", "deepseek"], "models": [{"id": "gpt-5.4-mini", "context": 128000}]}},
     "/v1/skills/market-overview": {"method": "GET", "route": "/v1/skills/market-overview", "path_params": {}, "query": {}, "body": None,
@@ -648,6 +650,11 @@ try:
             accepts=_payment_options(X402_WALLET, "$0.01"),
             mime_type="application/json",
             description="SEO keyword research — volume estimates and competition",
+        ),
+        "GET /v1/backlinks": RouteConfig(
+            accepts=_payment_options(X402_WALLET, "$0.02"),
+            mime_type="application/json",
+            description="Backlink intelligence — Bing verified-site links plus Common Crawl domain rank",
         ),
         # --- NEW: Deep Research (flagship bundled endpoint) ---
         "GET /v1/research": RouteConfig(
@@ -2887,6 +2894,13 @@ async def package_security(package: str, ecosystem: str = "PyPI"):
 async def keyword_research(keyword: str):
     """SEO keyword research ($0.01 per call via x402)"""
     return seo_keywords(keyword)
+
+@app.get("/v1/backlinks", tags=["Utility"],
+         summary="Backlink Intelligence",
+         description="Bing Webmaster inbound links for verified sites plus Common Crawl domain-level rank. $0.02 USDC via x402.")
+async def backlink_research(domain: str, site_url: str | None = None):
+    """Backlink intelligence ($0.02 per call via x402)."""
+    return backlink_intelligence(domain, site_url)
 
 
 # --- Deep Research (Flagship Bundled Endpoint) ---
