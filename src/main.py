@@ -56,6 +56,8 @@ from skill_packs import crypto_dossier, stock_dossier, market_overview, availabl
 from media_gateway import generate_image, text_to_speech, multi_model_inference, list_all_models
 from voice_gateway import get_phone_number, make_call, lookup_number
 from agent_catalog import search_catalog, get_tool
+from agent_identity import (register_agent, get_agent, add_feedback, reputation,
+                            verify_agent, snapshot, verify_evidence, check_claims)
 
 AISERVICES_PAY_TO = "0x9863aB6242663FCc84c33632741711dB78f8Fd15"
 WALLET = os.environ.get("WALLET_ADDRESS", AISERVICES_PAY_TO)
@@ -3700,6 +3702,83 @@ class ImageRequest(BaseModel):
 
 # (Legacy media endpoints removed — now defined above in the Inference/Media sections)
 
+
+# ============================================================
+# IDENTITY, REPUTATION & EVIDENCE (ERC-8004-compatible)
+# ============================================================
+
+class AgentRegistration(BaseModel):
+    wallet: str = Field(min_length=3)
+    name: str = Field(min_length=1)
+    endpoint: str = ""
+    metadata: dict = Field(default_factory=dict)
+
+class FeedbackRequest(BaseModel):
+    score: int = Field(ge=0, le=100)
+    comment: str = ""
+    job_id: str = ""
+    evaluator: str = ""
+
+class EvidenceRequest(BaseModel):
+    agent_id: str = ""
+    subject: str = Field(min_length=1)
+    data: object
+    source: str = ""
+
+class ClaimsRequest(BaseModel):
+    evidence_ids: list[str] = Field(min_length=1)
+
+@app.post("/v1/agents/register", tags=["Identity"])
+async def agent_register(req: AgentRegistration):
+    return register_agent(req.wallet, req.name, req.endpoint, req.metadata)
+
+@app.get("/v1/agents/{agent_id}", tags=["Identity"])
+async def agent_detail(agent_id: str):
+    agent = get_agent(agent_id)
+    if not agent:
+        from fastapi import HTTPException
+        raise HTTPException(404, "agent not found")
+    return agent
+
+@app.post("/v1/agents/{agent_id}/feedback", tags=["Identity"])
+async def agent_feedback(agent_id: str, req: FeedbackRequest):
+    try:
+        return add_feedback(agent_id, req.score, req.comment, req.job_id, req.evaluator)
+    except KeyError:
+        from fastapi import HTTPException
+        raise HTTPException(404, "agent not found")
+
+@app.get("/v1/agents/{agent_id}/reputation", tags=["Identity"])
+async def agent_reputation(agent_id: str):
+    try:
+        return reputation(agent_id)
+    except KeyError:
+        from fastapi import HTTPException
+        raise HTTPException(404, "agent not found")
+
+@app.post("/v1/agents/{agent_id}/verify", tags=["Identity"])
+async def agent_verify(agent_id: str, challenge: str = ""):
+    try:
+        return verify_agent(agent_id, challenge)
+    except KeyError:
+        from fastapi import HTTPException
+        raise HTTPException(404, "agent not found")
+
+@app.post("/v1/evidence/snapshot", tags=["Evidence"])
+async def evidence_snapshot(req: EvidenceRequest):
+    return snapshot(req.agent_id, req.subject, req.data, req.source)
+
+@app.post("/v1/evidence/verify", tags=["Evidence"])
+async def evidence_verify(evidence_id: str):
+    try:
+        return verify_evidence(evidence_id)
+    except KeyError:
+        from fastapi import HTTPException
+        raise HTTPException(404, "evidence not found")
+
+@app.post("/v1/claims/check", tags=["Evidence"])
+async def claims_check(req: ClaimsRequest):
+    return check_claims(req.evidence_ids)
 
 # ============================================================
 # VOICE GATEWAY (v5.3.0 — Phone, Calls)
