@@ -10,6 +10,8 @@ import urllib.request
 import urllib.parse
 import json
 import re
+import html
+from html.parser import HTMLParser
 from datetime import datetime
 import os
 
@@ -93,6 +95,51 @@ def _common_crawl_rank(domain):
     }
 
 
+class _LinkParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links = []
+        self._href = None
+        self._text = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() == "a":
+            self._href = dict(attrs).get("href")
+            self._text = []
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href:
+            self.links.append((self._href, " ".join(self._text).strip()))
+            self._href, self._text = None, []
+
+
+def _public_search_references(domain, limit=25):
+    """Discover ordinary indexed web results without claiming an index count."""
+    query_text = f'"{domain}" -site:{domain}'
+    query = urllib.parse.quote(query_text)
+    url = f"https://html.duckduckgo.com/html/?q={query}"
+    raw = _fetch(url, timeout=20, headers={"User-Agent": "Mozilla/5.0 (compatible; AgentServices/1.0)"})
+    parser = _LinkParser()
+    parser.feed(raw)
+    rows, seen = [], set()
+    for href, text in parser.links:
+        href = html.unescape(href)
+        match = re.search(r"/url\\?q=(https?://[^&]+)", href)
+        href = urllib.parse.unquote(match.group(1)) if match else href
+        if not href.startswith(("http://", "https://")) or _is_self_url(href, domain) or href in seen:
+            continue
+        seen.add(href)
+        rows.append(_evidence(href, domain, "public_search", "indexed_reference", verified=False,
+            evidence="public search result for exact target-domain query", title=html.unescape(text)[:300]))
+        if len(rows) >= limit:
+            break
+    return {"query": query_text, "pages": rows, "count": len(rows), "verified": False}
+
+
 def _exa_key():
     return os.getenv("EXA_API_KEY", "").strip()
 
@@ -141,31 +188,26 @@ def _exa_backlinks(domain, limit=25):
 
 
 def _github_references(domain, limit=30):
-    """Search repositories, then verify links in their README content."""
+    """Search GitHub code and verify each matching public file URL."""
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "AgentServices/1.0"}
+    token = os.getenv("GITHUB_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = "Bearer " + token
     query = urllib.parse.quote(f'"{domain}"')
-    req = urllib.request.Request(f"https://api.github.com/search/repositories?q={query}&per_page={min(limit, 100)}",
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "AgentServices/1.0"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    req = urllib.request.Request(f"https://api.github.com/search/code?q={query}&per_page={min(limit, 100)}", headers=headers)
+    with urllib.request.urlopen(req, timeout=20) as resp:
         data = json.loads(resp.read().decode(errors="replace"))
     pages = []
     for item in data.get("items", []):
-        full_name = item.get("full_name", "")
-        if not full_name:
-            continue
-        try:
-            content = _fetch("https://raw.githubusercontent.com/" + full_name + "/HEAD/README.md", timeout=10,
-                headers={"User-Agent": "AgentServices/1.0"})
-        except Exception:
-            content = ""
-        # Repository metadata is not proof of a backlink. Only emit when README
-        # content contains the target domain.
-        if domain not in content.lower():
-            continue
         url = item.get("html_url")
-        pages.append(_evidence(url, domain, "github", "ecosystem_surface", verified=True,
-            evidence="GitHub repository README contains target domain", title=full_name,
-            stars=item.get("stargazers_count", 0), forks=item.get("forks_count", 0)))
-    return {"query": f'"{domain}"', "pages": pages, "count": len(pages), "repositories_scanned": len(data.get("items", []))}
+        repo = item.get("repository", {})
+        if not url or _is_self_url(url, domain):
+            continue
+        pages.append(_evidence(url, domain, "github", "indexed_reference", verified=True,
+            evidence="GitHub code search matched the target domain", title=item.get("name", ""),
+            repository=repo.get("full_name", ""), path=item.get("path", "")))
+    return {"query": f'"{domain}"', "pages": pages, "count": len(pages),
+            "code_search_total": data.get("total_count"), "repositories_scanned": len(data.get("items", []))}
 
 
 def _npm_references(domain, limit=30):
@@ -200,7 +242,7 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
         "coverage": {"authoritative_backlink_index": False, "public_discovery_search": False, "ecosystem_surface_scan": False},
         "summary": {"verified_backlinks": None, "external_references": 0, "first_party_surfaces": 0, "self_references_removed": True},
         "backlinks": [], "external_references": [], "ecosystem_surfaces": [], "sources": {},
-        "limitations": ["No authoritative backlink provider is configured until Bing Webmaster credentials are supplied.", "Search and registry results are discovery signals, not a complete backlink index."],
+        "limitations": ["No authoritative backlink provider is configured until Bing Webmaster credentials are supplied.", "Search results prove discovery, not a complete backlink index; each result should be fetched before treating it as a live hyperlink."],
     }
     try:
         pages, total_pages = _bing_pages(site_url, "GetLinkCounts")
@@ -211,11 +253,14 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
             result["backlinks"].extend(pages)
     except Exception as exc:
         result["bing"] = {"site_url": site_url, "pages": [], "configured": bool(_bing_key()), "error": type(exc).__name__}
-    for name, loader, label in (("exa", _exa_backlinks, "indexed web references"), ("github", _github_references, "GitHub ecosystem surfaces"), ("npm", _npm_references, "npm ecosystem surfaces")):
+    for name, loader, label in (("public_search", _public_search_references, "public search references"), ("exa", _exa_backlinks, "indexed web references"), ("github", _github_references, "GitHub ecosystem surfaces"), ("npm", _npm_references, "npm ecosystem surfaces")):
         try:
             result[name] = loader(domain)
-            result["sources"][name] = {"status": "ok", "type": label}
-            result["coverage"]["public_discovery_search" if name == "exa" else "ecosystem_surface_scan"] = True
+            result["sources"][name] = {"status": "ok" if result[name].get("pages") else "no_results", "type": label}
+            if name in ("public_search", "exa", "github"):
+                result["coverage"]["public_discovery_search"] = True
+            else:
+                result["coverage"]["ecosystem_surface_scan"] = True
             for page in result[name].get("pages", []):
                 if page.get("type") == "ecosystem_surface": result["ecosystem_surfaces"].append(page)
                 else: result["external_references"].append(page)

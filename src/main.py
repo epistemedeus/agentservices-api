@@ -256,7 +256,7 @@ _BAZAAR_ENDPOINT_INFO = {
     "/v1/seo/keywords": {"method": "GET", "route": "/v1/seo/keywords", "path_params": {}, "query": {"domain": "example.com", "topic": "AI"}, "body": None,
         "output_example": [{"keyword": "AI API", "volume": 12000, "difficulty": 45}]},
     "/v1/backlinks": {"method": "GET", "route": "/v1/backlinks", "path_params": {}, "query": {"domain": "example.com", "site_url": "https://example.com/"}, "body": None,
-        "output_example": {"domain": "example.com", "bing": {"pages": []}, "common_crawl": {"found": False}}},
+        "output_example": {"domain": "example.com", "status": "partial", "backlinks": [], "external_references": [], "ecosystem_surfaces": [], "summary": {"verified_backlinks": None}}},
     "/v1/models/all": {"method": "GET", "route": "/v1/models/all", "path_params": {}, "query": {}, "body": None,
         "output_example": {"providers": ["openai", "anthropic", "google", "deepseek"], "models": [{"id": "gpt-5.4-mini", "context": 128000}]}},
     "/v1/skills/market-overview": {"method": "GET", "route": "/v1/skills/market-overview", "path_params": {}, "query": {}, "body": None,
@@ -654,7 +654,7 @@ try:
         "GET /v1/backlinks": RouteConfig(
             accepts=_payment_options(X402_WALLET, "$0.02"),
             mime_type="application/json",
-            description="Backlink profile — verified links plus indexed GitHub, npm, Exa, and Common Crawl discovery signals",
+            description="Backlink list — discovered external pages linking to the target domain",
         ),
         # --- NEW: Deep Research (flagship bundled endpoint) ---
         "GET /v1/research": RouteConfig(
@@ -2897,7 +2897,7 @@ async def keyword_research(keyword: str):
 
 @app.get("/v1/backlinks", tags=["Utility"],
          summary="Backlink Intelligence",
-         description="Bing Webmaster inbound links for verified sites plus Common Crawl domain-level rank. $0.02 USDC via x402.")
+         description="Discovered backlink list with source URLs and evidence. $0.02 USDC via x402.")
 async def backlink_research(domain: str, site_url: str | None = None):
     """Backlink intelligence ($0.02 per call via x402)."""
     return backlink_intelligence(domain, site_url)
