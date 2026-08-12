@@ -270,23 +270,24 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
         except Exception as exc:
             result["sources"][name] = {"name": label, "status": "error", "error": type(exc).__name__}
 
-    # A backlink report is useful at referring-domain level, not as 30 files
-    # from one repository. Keep the strongest URL per referring domain and cap
-    # the response at 50 domains.
+    # Deduplicate both representations: one canonical URL per referring
+    # domain, and one domain entry per domain. Cap at 1,000 domains.
+    max_results = 1000
+    unique_urls = {}
+    for row in result["backlinks"]:
+        url = row.get("url")
+        if url:
+            unique_urls.setdefault(url, row)
     by_domain = {}
-    for row in result["backlinks"]:
-        referring_domain = row.get("source_domain") or _hostname(row.get("url", ""))
-        if not referring_domain:
-            continue
-        row["referring_domain"] = referring_domain
-        by_domain.setdefault(referring_domain, row)
+    for row in unique_urls.values():
+        referring_domain = row.get("source_domain") or _hostname(row["url"])
+        if referring_domain:
+            row["referring_domain"] = referring_domain
+            by_domain.setdefault(referring_domain, row)
     result["backlinks"] = list(by_domain.values())[:max_results]
-    result["referring_domains"] = [row["referring_domain"] for row in result["backlinks"]]
-    result["count"] = len(result["backlinks"])
+    result["referring_domains"] = list(dict.fromkeys(row["referring_domain"] for row in result["backlinks"]))
+    result["count"] = len(result["referring_domains"])
     result["limit"] = max_results
-    result["source_breakdown"] = {}
-    for row in result["backlinks"]:
-        result["source_breakdown"][row["source"]] = result["source_breakdown"].get(row["source"], 0) + 1
     if result["count"]:
         result["status"] = "ok"
     return result
