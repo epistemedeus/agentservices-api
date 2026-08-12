@@ -654,7 +654,7 @@ try:
         "GET /v1/backlinks": RouteConfig(
             accepts=_payment_options(X402_WALLET, "$0.02"),
             mime_type="application/json",
-            description="Backlink intelligence — Bing verified-site links plus Common Crawl domain rank",
+            description="Backlink profile — verified links plus indexed GitHub, npm, Exa, and Common Crawl discovery signals",
         ),
         # --- NEW: Deep Research (flagship bundled endpoint) ---
         "GET /v1/research": RouteConfig(
