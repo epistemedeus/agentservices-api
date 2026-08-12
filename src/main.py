@@ -58,6 +58,7 @@ from voice_gateway import get_phone_number, make_call, lookup_number
 from agent_catalog import search_catalog, get_tool
 from agent_identity import (register_agent, get_agent, add_feedback, reputation,
                             verify_agent, snapshot, verify_evidence, check_claims)
+import erc8004_provider
 
 AISERVICES_PAY_TO = "0x9863aB6242663FCc84c33632741711dB78f8Fd15"
 WALLET = os.environ.get("WALLET_ADDRESS", AISERVICES_PAY_TO)
@@ -3727,6 +3728,30 @@ class EvidenceRequest(BaseModel):
 
 class ClaimsRequest(BaseModel):
     evidence_ids: list[str] = Field(min_length=1)
+
+@app.get("/v1/erc8004/provider", tags=["Identity"])
+async def erc8004_provider_info():
+    return erc8004_provider.provider_info()
+
+@app.get("/v1/erc8004/agents", tags=["Identity"])
+async def erc8004_agents(limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), chain_id: int | None = None, payment: str = ""):
+    return erc8004_provider.agents(limit, offset, chain_id, payment)
+
+@app.get("/v1/erc8004/agents/{agent_id}", tags=["Identity"])
+async def erc8004_agent(agent_id: str, payment: str = ""):
+    return erc8004_provider.agent(agent_id, payment)
+
+@app.get("/v1/erc8004/agents/{agent_id}/reputation", tags=["Identity"])
+async def erc8004_reputation(agent_id: str, payment: str = ""):
+    return erc8004_provider.reputation(agent_id, payment)
+
+@app.get("/v1/erc8004/agents/{agent_id}/feedback", tags=["Identity"])
+async def erc8004_feedback(agent_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), payment: str = ""):
+    return erc8004_provider.feedback(agent_id, limit, offset, payment)
+
+@app.get("/v1/erc8004/agents/{agent_id}/validations", tags=["Identity"])
+async def erc8004_validations(agent_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), payment: str = ""):
+    return erc8004_provider.validations(agent_id, limit, offset, payment)
 
 @app.post("/v1/agents/register", tags=["Identity"])
 async def agent_register(req: AgentRegistration):
