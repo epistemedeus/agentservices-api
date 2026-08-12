@@ -248,11 +248,7 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
         "status": "insufficient_data",
         "count": 0,
         "backlinks": [],
-        "sources": {},
-        "limitations": [
-            "Results are discovered references, not an exhaustive commercial backlink index.",
-            "Each result includes the source URL and the evidence used to identify the target-domain link.",
-        ],
+        "referring_domains": [],
     }
     providers = (
         ("github", _github_references, "GitHub code search"),
@@ -260,34 +256,26 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
         ("public_search", _public_search_references, "public search results"),
         ("exa", _exa_backlinks, "Exa indexed pages"),
     )
-    max_results = 50
-    for name, loader, label in providers:
+    for name, loader, _label in providers:
         try:
             data = loader(domain)
             rows = [row for row in data.get("pages", []) if row.get("url") and not _is_self_url(row["url"], domain)]
-            result["sources"][name] = {"name": label, "status": "ok" if rows else "no_results", "count": len(rows)}
             result["backlinks"].extend(rows)
-        except Exception as exc:
-            result["sources"][name] = {"name": label, "status": "error", "error": type(exc).__name__}
+        except Exception:
+            continue
 
-    # Deduplicate both representations: one canonical URL per referring
-    # domain, and one domain entry per domain. Cap at 1,000 domains.
-    max_results = 1000
+    # Preserve every distinct backlink URL while deduplicating exact URLs.
+    # Referring domains are a separate unique summary. Cap URLs at 1,000.
     unique_urls = {}
     for row in result["backlinks"]:
-        url = row.get("url")
-        if url:
-            unique_urls.setdefault(url, row)
-    by_domain = {}
-    for row in unique_urls.values():
-        referring_domain = row.get("source_domain") or _hostname(row["url"])
-        if referring_domain:
-            row["referring_domain"] = referring_domain
-            by_domain.setdefault(referring_domain, row)
-    result["backlinks"] = list(by_domain.values())[:max_results]
-    result["referring_domains"] = list(dict.fromkeys(row["referring_domain"] for row in result["backlinks"]))
-    result["count"] = len(result["referring_domains"])
-    result["limit"] = max_results
+        unique_urls.setdefault(row["url"], row)
+    result["backlinks"] = list(unique_urls.values())[:1000]
+    for row in result["backlinks"]:
+        row["referring_domain"] = row.get("source_domain") or _hostname(row["url"])
+    result["referring_domains"] = list(dict.fromkeys(
+        row["referring_domain"] for row in result["backlinks"] if row.get("referring_domain")
+    ))
+    result["count"] = len(result["backlinks"])
     if result["count"]:
         result["status"] = "ok"
     return result
