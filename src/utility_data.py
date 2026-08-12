@@ -32,9 +32,9 @@ def _fetch_json(url, timeout=10, headers=None):
 
 
 # ============================================================
-# BACKLINK INTELLIGENCE
-# Bing Webmaster links for verified sites; Common Crawl rank as a
-# separate domain-level signal. Credentials are runtime-only.
+# BACKLINK LIST
+# Public discovery providers return URL-level references. Bing remains an
+# optional verified-site provider; domain-graph signals are not backlinks.
 # ============================================================
 def _bing_key():
     key = os.getenv("BING_WEBMASTER_API_KEY", "").strip()
@@ -128,8 +128,12 @@ def _public_search_references(domain, limit=25):
     rows, seen = [], set()
     for href, text in parser.links:
         href = html.unescape(href)
-        match = re.search(r"/url\\?q=(https?://[^&]+)", href)
+        match = re.search(r"/url\?q=(https?://[^&]+)", href)
         href = urllib.parse.unquote(match.group(1)) if match else href
+        if href.startswith("//duckduckgo.com/l/?uddg="):
+            href = urllib.parse.parse_qs(urllib.parse.urlparse("https:" + href).query).get("uddg", [href])[0]
+        if href.startswith("//duckduckgo.com/l/?uddg="):
+            href = urllib.parse.parse_qs(urllib.parse.urlparse("https:" + href).query).get("uddg", [href])[0]
         if not href.startswith(("http://", "https://")) or _is_self_url(href, domain) or href in seen:
             continue
         seen.add(href)
@@ -223,11 +227,9 @@ def _npm_references(domain, limit=30):
         # npm search can match package names/descriptions without a link.
         if domain not in (homepage + " " + repo).lower():
             continue
-        if _is_self_url(homepage, domain) or _is_self_url(repo, domain):
-            continue
         pages.append(_evidence(f"https://www.npmjs.com/package/{urllib.parse.quote(name, safe='@/')}", domain,
             "npm", "ecosystem_surface", verified=True, evidence="npm metadata homepage or repository points to target domain",
-            title=name, description=package.get("description", ""), version=package.get("version")))
+            title=name, description=package.get("description", ""), version=package.get("version"), homepage=homepage, repository=repo))
     return {"query": domain, "pages": pages, "count": len(pages)}
 
 
@@ -262,8 +264,10 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
             else:
                 result["coverage"]["ecosystem_surface_scan"] = True
             for page in result[name].get("pages", []):
-                if page.get("type") == "ecosystem_surface": result["ecosystem_surfaces"].append(page)
-                else: result["external_references"].append(page)
+                if page.get("type") == "ecosystem_surface":
+                    result["ecosystem_surfaces"].append(page)
+                else:
+                    result["external_references"].append(page)
         except Exception as exc:
             result[name] = {"pages": [], "error": type(exc).__name__, "configured": bool(_exa_key()) if name == "exa" else None}
             result["sources"][name] = {"status": "not_configured" if name == "exa" and not _exa_key() else "error", "type": label}
