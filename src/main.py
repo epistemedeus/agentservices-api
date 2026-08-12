@@ -4,6 +4,7 @@ Crypto market data, IP geolocation, URL metadata, marketing intelligence
 """
 import os
 import html
+import json
 from pathlib import Path
 
 # Load .env file
@@ -17,6 +18,7 @@ if env_file.exists():
 from fastapi import FastAPI, Request, Query
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from typing import List
 import sys
@@ -46,12 +48,17 @@ from synthesis_data import (
     defi_strategy_report, market_pulse, onchain_overview, arbitrage_scanner, liquidation_map,
 )
 from inference_gateway import list_models as list_inference_models, inference, quick_complete, chat_completions, list_all_openrouter_models
+from pricing_cache import calculate_price as calc_dynamic_price, fetch_pricing, pricing_summary
 from tradfi_data import get_stock_quote, get_stock_history, get_sec_filings, get_commodities, get_economic_indicators, get_fx_rates
 from utility_data import extract_web_content, scan_package_security, seo_keywords
 from agent_memory import store as mem_store, retrieve as mem_retrieve, list_keys as mem_list, delete as mem_delete, search as mem_search
 from skill_packs import crypto_dossier, stock_dossier, market_overview, available_skills
 from media_gateway import generate_image, text_to_speech, multi_model_inference, list_all_models
 from voice_gateway import get_phone_number, make_call, lookup_number
+from agent_catalog import search_catalog, get_tool
+from agent_identity import (register_agent, get_agent, add_feedback, reputation,
+                            verify_agent, snapshot, verify_evidence, check_claims)
+import erc8004_provider
 
 AISERVICES_PAY_TO = "0x9863aB6242663FCc84c33632741711dB78f8Fd15"
 WALLET = os.environ.get("WALLET_ADDRESS", AISERVICES_PAY_TO)
@@ -78,6 +85,18 @@ LLM inference gateway, marketing intelligence, and more.
 All paid endpoints use x402 protocol with USDC on Base.
 """,
 )
+
+class DynamicBodyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if request.method == "POST" and request.url.path in ("/v1/chat/completions", "/v1/inference", "/v1/complete"):
+            try:
+                body = json.loads(await request.body())
+                request.scope.setdefault("state", {})["dynamic_body"] = body
+            except Exception:
+                request.scope.setdefault("state", {})["dynamic_body"] = {}
+        return await call_next(request)
+
+app.add_middleware(DynamicBodyMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -373,8 +392,12 @@ X402_ENABLED = False
 X402_ERROR = "Not initialized"
 try:
     from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption, CreateHeadersAuthProvider
-    from x402.http.middleware.fastapi import PaymentMiddlewareASGI
+    from x402.http.middleware.fastapi import PaymentMiddlewareASGI, FastAPIAdapter
     from x402.http.types import RouteConfig
+
+    # The upstream FastAPI adapter defaults get_body() to None. Expose the
+    # body captured by DynamicBodyMiddleware to DynamicPrice callbacks.
+    FastAPIAdapter.get_body = lambda self: self._request.scope.get("state", {}).get("dynamic_body")
     from x402.mechanisms.evm.exact import ExactEvmServerScheme
     from x402.server import x402ResourceServer
     from x402.extensions.bazaar import bazaar_resource_server_extension
@@ -532,16 +555,16 @@ try:
             mime_type="application/json",
             description="Macro economic and crypto indicators",
         ),
-        # --- NEW: Inference Gateway (BlockRun competitor) ---
+        # --- Inference Gateway (dynamic pricing: provider cost + 5%) ---
         "POST /v1/inference": RouteConfig(
             accepts=_payment_options(X402_WALLET, "$0.03"),
             mime_type="application/json",
-            description="LLM inference gateway — chat completions via gpt-5.4/5.4-mini/5.5",
+            description="LLM inference — dynamic pricing (provider cost + 5%, floor $0.003)",
         ),
         "POST /v1/complete": RouteConfig(
             accepts=_payment_options(X402_WALLET, "$0.03"),
             mime_type="application/json",
-            description="Quick text completion — send a prompt, get a response",
+            description="Quick text completion — dynamic pricing",
         ),
         # --- NEW: Synthesis Endpoints ---
         "GET /v1/token-risk/*": RouteConfig(
@@ -711,7 +734,7 @@ try:
         "POST /v1/chat/completions": RouteConfig(
             accepts=_payment_options(X402_WALLET, "$0.03"),
             mime_type="application/json",
-            description="Multi-model LLM gateway — 400+ models via OpenRouter. OpenAI-compatible. Use model='auto' for smart routing.",
+            description="Chat completions — dynamic pricing (provider cost + 5%, floor $0.003). 400+ models. Use model=auto for smart routing.",
         ),
         # --- Voice Gateway (phone, calls) ---
         "POST /v1/calls": RouteConfig(
@@ -726,11 +749,34 @@ try:
         ),
     }
 
-    app.add_middleware(
-        PaymentMiddlewareASGI,
-        routes=payment_routes,
-        server=payment_server,
-    )
+    # DynamicPrice is evaluated by x402 with the request context before 402.
+    from x402.http.types import HTTPRequestContext
+    def _dynamic_chat_price(context):
+        # Never undercharge if a framework adapter cannot expose the body.
+        # The conservative fallback is an authorization ceiling, not a margin
+        # claim; the normal path computes provider cost + 5% from live rates.
+        body = context.adapter.get_body()
+        if not isinstance(body, dict) or not body:
+            return "$0.25"
+        model = body.get("model") or "auto"
+        messages = body.get("messages", [])
+        max_tokens = min(int(body.get("max_tokens", 1000) or 1000), 4096)
+        if model == "auto":
+            from inference_gateway import _route_model
+            model = _route_model("auto", messages, body.get("profile", "auto"))
+        return calc_dynamic_price(model, messages, max_tokens)
+    for route_key in ("POST /v1/chat/completions", "POST /v1/inference", "POST /v1/complete"):
+        route = payment_routes.get(route_key)
+        if route:
+            for option in route.accepts:
+                option.price = _dynamic_chat_price
+
+    # Use function middleware so request body can be parsed by the dynamic price hook.
+    from x402.http.middleware.fastapi import payment_middleware
+    app.middleware("http")(payment_middleware(payment_routes, payment_server))
+    # Register after x402 so Starlette executes it before x402 on the request path.
+    app.add_middleware(DynamicBodyMiddleware)
+    # Must wrap x402 so the request body is priced before the payment challenge.
     print(f"[x402] Payment middleware enabled on {X402_NETWORK_LABEL} — disputes ($0.05), indicators/yields/correlation ($0.02–$0.03), metadata/search ($0.01), marketing ($0.03–$0.05), on-chain data ($0.02–$0.03)", flush=True)
     X402_ENABLED = True
     X402_ERROR = None
@@ -1129,44 +1175,28 @@ def _get_landing():
     return _landing_html
 
 
+def _live_capability_summary() -> dict:
+    """Generate discovery facts from the registered FastAPI schema, never stale copy."""
+    schema = app.openapi()
+    paths = schema.get("paths", {})
+    identity = [p for p in paths if p.startswith("/v1/erc8004/") or p.startswith("/v1/agents/") or p.startswith("/v1/evidence/") or p.startswith("/v1/claims/")]
+    return {"path_count": len(paths), "identity_evidence_paths": sorted(identity), "openapi": "/openapi.json", "generated": "runtime"}
+
+
 def _get_llms_full_markdown():
     """Return a concise markdown version of the landing page for content negotiation."""
-    return """# AgentServices — Premium APIs for AI Agents
+    live = _live_capability_summary()
+    return f"""# AgentServices — APIs for AI Agents
 
-53 paid APIs for AI agents. Data, search, market intelligence, DeFi strategy, cross-DEX arbitrage, AI inference. All via x402 (USDC on Base).
+AgentServices exposes {live['path_count']} registered API routes. Data, search, market intelligence, DeFi strategy, cross-DEX arbitrage, AI inference, ERC-8004 agent discovery, reputation, and evidence verification. Paid routes use x402 (USDC on Base).
 
-## What We Offer
+## Live capability discovery
 
-- **Crypto Data**: Prices, indicators (RSI, Bollinger, ATR), DeFi yields, whale tracking, exchange flows
-- **Market Intelligence**: Portfolio analysis, DeFi strategy reports, market pulse, on-chain overview
-- **Cross-DEX Arbitrage**: Real-time price discrepancies with gas-adjusted profitability modeling
-- **AI Inference**: LLM gateway (GPT-5.4, GPT-5.5, Gemini) via x402 micropayments
-- **Traditional Finance**: Stock quotes, SEC filings, commodities, FX rates, economic indicators
-- **Utility**: Web extraction, package security scans, SEO keyword research
-- **MCP Integration**: 37 tools via remote MCP server at /mcp
-
-## Quick Start
-
-```bash
-# Free: Get BTC price
-curl https://agentservices.to/v1/price/BTC
-
-# Paid: Get technical indicators (requires x402 payment)
-curl https://agentservices.to/v1/indicators/BTC
-
-# MCP config for Claude Desktop
-{"mcpServers":{"agentservices":{"url":"https://agentservices.to/mcp"}}}
-```
-
-## Links
-
-- [API Docs](https://agentservices.to/docs)
-- [Examples](https://agentservices.to/examples)
-- [GitHub](https://github.com/vbkotecha/agentservices-api)
-- [OpenAPI Spec](https://agentservices.to/openapi.json)
-- [x402 Manifest](https://agentservices.to/.well-known/x402.json)
+The capability list is generated from the deployed OpenAPI schema, not hardcoded marketing copy:
+- OpenAPI: https://agentservices.to/openapi.json
+- Catalog search: https://agentservices.to/v1/catalog/search
+- Identity and evidence routes: {', '.join(live['identity_evidence_paths'])}
 """
-
 
 @app.get("/")
 async def root(request: Request):
@@ -1220,6 +1250,41 @@ async def root(request: Request):
             "live": True,
         }
     return HTMLResponse(content=_get_landing())
+
+
+@app.get("/v1/catalog/search", tags=["Discovery"])
+async def catalog_search(query: str = "", tag: list[str] | None = Query(default=None), limit: int = 25):
+    """Find AgentServices capabilities by task, not by vendor or route."""
+    return {
+        "query": query,
+        "tools": search_catalog(query, tag, limit),
+        "total": len(search_catalog(query, tag, limit)),
+        "next": "Use GET /v1/catalog/tools/{id} for the call contract and quote.",
+    }
+
+
+@app.get("/v1/catalog/tools/{tool_id:path}", tags=["Discovery"])
+async def catalog_tool(tool_id: str):
+    """Return a single task-oriented tool contract and its current quote."""
+    tool = get_tool(tool_id)
+    if not tool:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Unknown catalog tool")
+    return tool
+
+
+@app.get("/v1/catalog/platforms", tags=["Discovery"])
+async def catalog_platforms():
+    """Return catalog metadata without overstating external provider coverage."""
+    tools = search_catalog(limit=100)
+    return {
+        "name": "AgentServices catalog",
+        "tool_count": len(tools),
+        "provider_count": 1,
+        "providers": [{"id": "agentservices", "status": "active", "credential_mode": "x402"}],
+        "scope": "first-party AgentServices endpoints",
+        "tools": tools,
+    }
 
 
 @app.get("/api")
@@ -2645,15 +2710,15 @@ class ChatCompletionRequest(BaseModel):
     model: str = Field(default="auto", description="Model ID or 'auto' for smart routing. 400+ models available.")
     messages: List[dict] = Field(description="Chat messages in OpenAI format [{role, content}]")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=1000, ge=1, le=32000)
+    max_tokens: int = Field(default=1000, ge=1, le=4096)
     stream: bool = Field(default=False)
     profile: str = Field(default="auto", description="Router profile: auto, eco, premium, free")
 
 @app.post("/v1/chat/completions", tags=["Inference"],
           summary="Chat Completions (OpenAI-compatible, 400+ models)",
-          description="Drop-in OpenAI replacement. Supports Claude, GPT, Gemini, DeepSeek, Grok, Llama, and more. Use model='auto' for smart routing. $0.03 USDC via x402.")
+          description="Drop-in OpenAI replacement. 400+ models via OpenRouter. Dynamic pricing: provider cost + 5%, floor $0.003. Use model='auto' for smart routing.")
 async def chat_completions_endpoint(req: ChatCompletionRequest):
-    """OpenAI-compatible chat completions with 400+ models and smart routing ($0.03 via x402)"""
+    """OpenAI-compatible chat completions — dynamic pricing via x402"""
     return chat_completions(
         model=req.model,
         messages=req.messages,
@@ -3361,9 +3426,10 @@ async def oauth_authorization_server():
 async def llms_txt():
     """Canonical index for AI agents and LLM crawlers. Follows the llms.txt convention."""
     from starlette.responses import PlainTextResponse
-    return PlainTextResponse(content="""# AgentServices
+    live = _live_capability_summary()
+    return PlainTextResponse(content=f"""# AgentServices
 
-> Paid APIs for AI agents. 53 services, 41 paid. Data, search, market intelligence, and inference. Agents pay per call via x402 (USDC on Base).
+> Paid APIs for AI agents. {live['path_count']} live routes generated from the deployed OpenAPI schema. Data, search, market intelligence, inference, and ERC-8004 identity/reputation/evidence. Agents pay per call via x402 (USDC on Base).
 
 ## Quick Start
 - Free endpoints: GET https://agentservices.to/v1/prices (crypto prices), GET https://agentservices.to/v1/fear-greed (market sentiment)
@@ -3372,6 +3438,11 @@ async def llms_txt():
 - Full docs: https://agentservices.to/docs
 - OpenAPI spec: https://agentservices.to/openapi.json
 - Health check: https://agentservices.to/health
+- Task catalog: https://agentservices.to/v1/catalog/search?query=web+research
+- Tool contract: https://agentservices.to/v1/catalog/tools/research.web
+- Live capability schema: https://agentservices.to/openapi.json
+- ERC-8004 provider metadata: https://agentservices.to/v1/erc8004/provider
+- ERC-8004 agent discovery: https://agentservices.to/v1/erc8004/agents
 
 ## Key Endpoints
 - [Crypto Prices](https://agentservices.to/v1/prices): Free. Real-time prices for 1000+ tokens.
@@ -3403,10 +3474,11 @@ async def llms_txt():
 async def agents_txt():
     """Instructions for AI agents crawling or using AgentServices."""
     from starlette.responses import PlainTextResponse
-    return PlainTextResponse(content="""# AgentServices — Agent Instructions
+    live = _live_capability_summary()
+    return PlainTextResponse(content=f"""# AgentServices — Agent Instructions
 
 ## What This Service Does
-AgentServices provides paid API endpoints for AI agents. 53 services covering crypto market data, on-chain analytics, DeFi intelligence, market sentiment, stock data, web extraction, and AI inference.
+AgentServices provides paid API endpoints for AI agents. The deployed schema currently exposes {live['path_count']} routes covering crypto market data, on-chain analytics, DeFi intelligence, market sentiment, stock data, web extraction, AI inference, and ERC-8004 identity/reputation/evidence.
 
 ## How to Pay
 1. Make a GET/POST request to any paid endpoint
@@ -3620,6 +3692,107 @@ class ImageRequest(BaseModel):
 
 # (Legacy media endpoints removed — now defined above in the Inference/Media sections)
 
+
+# ============================================================
+# IDENTITY, REPUTATION & EVIDENCE (ERC-8004-compatible)
+# ============================================================
+
+class AgentRegistration(BaseModel):
+    wallet: str = Field(min_length=3)
+    name: str = Field(min_length=1)
+    endpoint: str = ""
+    metadata: dict = Field(default_factory=dict)
+
+class FeedbackRequest(BaseModel):
+    score: int = Field(ge=0, le=100)
+    comment: str = ""
+    job_id: str = ""
+    evaluator: str = ""
+
+class EvidenceRequest(BaseModel):
+    agent_id: str = ""
+    subject: str = Field(min_length=1)
+    data: object
+    source: str = ""
+
+class ClaimsRequest(BaseModel):
+    evidence_ids: list[str] = Field(min_length=1)
+
+@app.get("/v1/erc8004/provider", tags=["Identity"])
+async def erc8004_provider_info():
+    return erc8004_provider.provider_info()
+
+@app.get("/v1/erc8004/agents", tags=["Identity"])
+async def erc8004_agents(limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), chain_id: int | None = None, payment: str = ""):
+    return erc8004_provider.agents(limit, offset, chain_id, payment)
+
+@app.get("/v1/erc8004/agents/{agent_id}", tags=["Identity"])
+async def erc8004_agent(agent_id: str, payment: str = ""):
+    return erc8004_provider.agent(agent_id, payment)
+
+@app.get("/v1/erc8004/agents/{agent_id}/reputation", tags=["Identity"])
+async def erc8004_reputation(agent_id: str, payment: str = ""):
+    return erc8004_provider.reputation(agent_id, payment)
+
+@app.get("/v1/erc8004/agents/{agent_id}/feedback", tags=["Identity"])
+async def erc8004_feedback(agent_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), payment: str = ""):
+    return erc8004_provider.feedback(agent_id, limit, offset, payment)
+
+@app.get("/v1/erc8004/agents/{agent_id}/validations", tags=["Identity"])
+async def erc8004_validations(agent_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), payment: str = ""):
+    return erc8004_provider.validations(agent_id, limit, offset, payment)
+
+@app.post("/v1/agents/register", tags=["Identity"])
+async def agent_register(req: AgentRegistration):
+    return register_agent(req.wallet, req.name, req.endpoint, req.metadata)
+
+@app.get("/v1/agents/{agent_id}", tags=["Identity"])
+async def agent_detail(agent_id: str):
+    agent = get_agent(agent_id)
+    if not agent:
+        from fastapi import HTTPException
+        raise HTTPException(404, "agent not found")
+    return agent
+
+@app.post("/v1/agents/{agent_id}/feedback", tags=["Identity"])
+async def agent_feedback(agent_id: str, req: FeedbackRequest):
+    try:
+        return add_feedback(agent_id, req.score, req.comment, req.job_id, req.evaluator)
+    except KeyError:
+        from fastapi import HTTPException
+        raise HTTPException(404, "agent not found")
+
+@app.get("/v1/agents/{agent_id}/reputation", tags=["Identity"])
+async def agent_reputation(agent_id: str):
+    try:
+        return reputation(agent_id)
+    except KeyError:
+        from fastapi import HTTPException
+        raise HTTPException(404, "agent not found")
+
+@app.post("/v1/agents/{agent_id}/verify", tags=["Identity"])
+async def agent_verify(agent_id: str, challenge: str = ""):
+    try:
+        return verify_agent(agent_id, challenge)
+    except KeyError:
+        from fastapi import HTTPException
+        raise HTTPException(404, "agent not found")
+
+@app.post("/v1/evidence/snapshot", tags=["Evidence"])
+async def evidence_snapshot(req: EvidenceRequest):
+    return snapshot(req.agent_id, req.subject, req.data, req.source)
+
+@app.post("/v1/evidence/verify", tags=["Evidence"])
+async def evidence_verify(evidence_id: str):
+    try:
+        return verify_evidence(evidence_id)
+    except KeyError:
+        from fastapi import HTTPException
+        raise HTTPException(404, "evidence not found")
+
+@app.post("/v1/claims/check", tags=["Evidence"])
+async def claims_check(req: ClaimsRequest):
+    return check_claims(req.evidence_ids)
 
 # ============================================================
 # VOICE GATEWAY (v5.3.0 — Phone, Calls)
