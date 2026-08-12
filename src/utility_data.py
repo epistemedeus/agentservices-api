@@ -97,92 +97,95 @@ def _exa_key():
     return os.getenv("EXA_API_KEY", "").strip()
 
 
-def _exa_backlinks(domain, limit=25):
-    """Return externally discoverable pages that mention the target domain.
+def _hostname(url):
+    try:
+        return (urllib.parse.urlparse(url).hostname or "").lower().rstrip(".")
+    except ValueError:
+        return ""
 
-    Exa search is a discovery source, not a verified backlink index. We only
-    label a result as a backlink when fetched text contains the target domain.
-    """
+
+def _is_self_url(url, domain):
+    host = _hostname(url)
+    return host == domain or host.endswith("." + domain)
+
+
+def _evidence(url, domain, source, kind, *, verified=False, **extra):
+    row = {
+        "url": url,
+        "source_domain": _hostname(url),
+        "source": source,
+        "type": kind,
+        "target": "https://" + domain + "/",
+        "verified": verified,
+    }
+    row.update(extra)
+    return row
+
+
+def _exa_backlinks(domain, limit=25):
     key = _exa_key()
     if not key:
         return {"configured": False, "pages": [], "error": "not_configured"}
     query = f'pages linking to or documenting "{domain}"'
     payload = {"query": query, "numResults": min(max(limit, 1), 50), "contents": {"text": {"maxCharacters": 12000}}}
-    req = urllib.request.Request(
-        "https://api.exa.ai/search",
-        data=json.dumps(payload).encode(),
-        headers={"x-api-key": key, "Content-Type": "application/json", "User-Agent": "AgentServices/1.0"},
-        method="POST",
-    )
+    req = urllib.request.Request("https://api.exa.ai/search", data=json.dumps(payload).encode(),
+        headers={"x-api-key": key, "Content-Type": "application/json", "User-Agent": "AgentServices/1.0"}, method="POST")
     with urllib.request.urlopen(req, timeout=20) as resp:
         data = json.loads(resp.read().decode(errors="replace"))
     pages = []
-    seen = set()
-    needle = domain.lower()
     for item in data.get("results", []):
-        url = (item.get("url") or "").strip()
-        text = item.get("text") or ""
-        if not url or url.lower().split("/", 3)[2:3] == [domain]:
-            continue
-        # Exa's text is the evidence we can inspect; do not fabricate links
-        # from titles or search snippets alone.
-        if needle not in text.lower():
-            continue
-        if url in seen:
-            continue
-        seen.add(url)
-        pages.append({
-            "url": url,
-            "title": item.get("title", ""),
-            "published_date": item.get("publishedDate") or item.get("published_date"),
-            "source": "exa",
-            "evidence": "target domain present in indexed page content",
-        })
+        url, text = (item.get("url") or "").strip(), item.get("text") or ""
+        if url and not _is_self_url(url, domain) and domain in text.lower():
+            pages.append(_evidence(url, domain, "exa", "indexed_reference", evidence="target domain present in indexed page content", title=item.get("title", "")))
     return {"configured": True, "query": query, "pages": pages, "count": len(pages)}
 
 
 def _github_references(domain, limit=30):
-    """Find public GitHub pages that reference a domain."""
+    """Search repositories, then verify links in their README content."""
     query = urllib.parse.quote(f'"{domain}"')
-    req = urllib.request.Request(
-        f"https://api.github.com/search/repositories?q={query}&per_page={min(limit, 100)}",
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "AgentServices/1.0"},
-    )
+    req = urllib.request.Request(f"https://api.github.com/search/repositories?q={query}&per_page={min(limit, 100)}",
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "AgentServices/1.0"})
     with urllib.request.urlopen(req, timeout=15) as resp:
         data = json.loads(resp.read().decode(errors="replace"))
     pages = []
     for item in data.get("items", []):
+        full_name = item.get("full_name", "")
+        if not full_name:
+            continue
+        try:
+            content = _fetch("https://raw.githubusercontent.com/" + full_name + "/HEAD/README.md", timeout=10,
+                headers={"User-Agent": "AgentServices/1.0"})
+        except Exception:
+            content = ""
+        # Repository metadata is not proof of a backlink. Only emit when README
+        # content contains the target domain.
+        if domain not in content.lower():
+            continue
         url = item.get("html_url")
-        if url:
-            pages.append({
-                "url": url,
-                "title": item.get("full_name", ""),
-                "description": item.get("description", ""),
-                "source": "github_repository_search",
-                "evidence": "repository metadata matched target domain query",
-                "stars": item.get("stargazers_count", 0),
-            })
-    return {"query": f'"{domain}"', "pages": pages, "count": len(pages)}
+        pages.append(_evidence(url, domain, "github", "ecosystem_surface", verified=True,
+            evidence="GitHub repository README contains target domain", title=full_name,
+            stars=item.get("stargazers_count", 0), forks=item.get("forks_count", 0)))
+    return {"query": f'"{domain}"', "pages": pages, "count": len(pages), "repositories_scanned": len(data.get("items", []))}
 
 
 def _npm_references(domain, limit=30):
-    """Find npm packages whose registry metadata references a domain."""
-    query = urllib.parse.quote(domain)
-    data = _fetch_json(f"https://registry.npmjs.org/-/v1/search?text={query}&size={min(limit, 250)}", timeout=15)
+    data = _fetch_json(f"https://registry.npmjs.org/-/v1/search?text={urllib.parse.quote(domain)}&size={min(limit, 250)}", timeout=15)
     pages = []
     for item in data.get("objects", []):
         package = item.get("package", {})
-        name = package.get("name")
+        name, links = package.get("name"), package.get("links", {})
         if not name:
             continue
-        pages.append({
-            "url": f"https://www.npmjs.com/package/{urllib.parse.quote(name, safe='@/')}",
-            "title": name,
-            "description": package.get("description", ""),
-            "source": "npm_registry_search",
-            "evidence": "npm registry search matched target domain",
-            "version": package.get("version"),
-        })
+        homepage = links.get("homepage", "")
+        repo = links.get("repository", "")
+        # npm search can match package names/descriptions without a link.
+        if domain not in (homepage + " " + repo).lower():
+            continue
+        if _is_self_url(homepage, domain) or _is_self_url(repo, domain):
+            continue
+        pages.append(_evidence(f"https://www.npmjs.com/package/{urllib.parse.quote(name, safe='@/')}", domain,
+            "npm", "ecosystem_surface", verified=True, evidence="npm metadata homepage or repository points to target domain",
+            title=name, description=package.get("description", ""), version=package.get("version")))
     return {"query": domain, "pages": pages, "count": len(pages)}
 
 
@@ -193,47 +196,46 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
     site_url = site_url or f"https://{domain}/"
     result = {
         "domain": domain,
-        "status": "ok",
-        "sources": {},
-        "discovered_pages": [],
-        "disclaimer": "Bing Webmaster is authoritative only for a verified site. Exa pages are indexed references whose content contains the target domain; they are not guaranteed live hyperlinks. Common Crawl rank is a domain-level web-graph signal, not an exact backlink count.",
+        "status": "insufficient_data",
+        "coverage": {"authoritative_backlink_index": False, "public_discovery_search": False, "ecosystem_surface_scan": False},
+        "summary": {"verified_backlinks": None, "external_references": 0, "first_party_surfaces": 0, "self_references_removed": True},
+        "backlinks": [], "external_references": [], "ecosystem_surfaces": [], "sources": {},
+        "limitations": ["No authoritative backlink provider is configured until Bing Webmaster credentials are supplied.", "Search and registry results are discovery signals, not a complete backlink index."],
     }
     try:
         pages, total_pages = _bing_pages(site_url, "GetLinkCounts")
         result["bing"] = {"site_url": site_url, "pages": pages, "total_pages": total_pages, "configured": bool(_bing_key())}
-        result["sources"]["bing_webmaster"] = "verified-site inbound link counts"
-        result["discovered_pages"].extend(pages)
+        result["sources"]["bing_webmaster"] = {"status": "ok" if _bing_key() else "not_configured", "type": "authoritative_verified_site"}
+        if _bing_key():
+            result["coverage"]["authoritative_backlink_index"] = True
+            result["backlinks"].extend(pages)
     except Exception as exc:
-        result["bing"] = {"site_url": site_url, "configured": bool(_bing_key()), "error": type(exc).__name__}
-    try:
-        result["exa"] = _exa_backlinks(domain)
-        result["sources"]["exa"] = "indexed pages with target-domain evidence"
-        result["discovered_pages"].extend(result["exa"].get("pages", []))
-    except Exception as exc:
-        result["exa"] = {"configured": bool(_exa_key()), "pages": [], "error": type(exc).__name__}
-    for name, loader, label in (
-        ("github", _github_references, "public GitHub repository references"),
-        ("npm", _npm_references, "npm registry package references"),
-    ):
+        result["bing"] = {"site_url": site_url, "pages": [], "configured": bool(_bing_key()), "error": type(exc).__name__}
+    for name, loader, label in (("exa", _exa_backlinks, "indexed web references"), ("github", _github_references, "GitHub ecosystem surfaces"), ("npm", _npm_references, "npm ecosystem surfaces")):
         try:
             result[name] = loader(domain)
-            result["sources"][name] = label
-            result["discovered_pages"].extend(result[name].get("pages", []))
+            result["sources"][name] = {"status": "ok", "type": label}
+            result["coverage"]["public_discovery_search" if name == "exa" else "ecosystem_surface_scan"] = True
+            for page in result[name].get("pages", []):
+                if page.get("type") == "ecosystem_surface": result["ecosystem_surfaces"].append(page)
+                else: result["external_references"].append(page)
         except Exception as exc:
-            result[name] = {"pages": [], "error": type(exc).__name__}
+            result[name] = {"pages": [], "error": type(exc).__name__, "configured": bool(_exa_key()) if name == "exa" else None}
+            result["sources"][name] = {"status": "not_configured" if name == "exa" and not _exa_key() else "error", "type": label}
     try:
         result["common_crawl"] = _common_crawl_rank(domain)
-        result["sources"]["common_crawl"] = "domain-level harmonic centrality/PageRank"
+        result["sources"]["common_crawl"] = {"status": "limited_coverage", "type": "domain_graph_signal"}
     except Exception as exc:
-        result["common_crawl"] = {"error": type(exc).__name__}
-    # Stable deduplication across providers.
-    unique = {}
-    for page in result["discovered_pages"]:
-        url = page.get("url") or page.get("source") or repr(page)
-        unique.setdefault(url, page)
-    result["discovered_pages"] = list(unique.values())
-    if not result["discovered_pages"]:
-        result["status"] = "insufficient_data"
+        result["common_crawl"] = {"found": False, "error": type(exc).__name__}
+    for key in ("backlinks", "external_references", "ecosystem_surfaces"):
+        unique = {}
+        for row in result[key]: unique.setdefault(row.get("url"), row)
+        result[key] = list(unique.values())
+    result["summary"]["verified_backlinks"] = len(result["backlinks"]) if result["coverage"]["authoritative_backlink_index"] else None
+    result["summary"]["external_references"] = len(result["external_references"])
+    result["summary"]["first_party_surfaces"] = len(result["ecosystem_surfaces"])
+    if result["summary"]["external_references"] or result["summary"]["first_party_surfaces"] or result["summary"]["verified_backlinks"]:
+        result["status"] = "partial" if not result["coverage"]["authoritative_backlink_index"] else "ok"
     return result
 
 
