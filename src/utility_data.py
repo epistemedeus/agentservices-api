@@ -264,17 +264,18 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
         except Exception:
             continue
 
-    # Preserve every distinct backlink URL while deduplicating exact URLs.
-    # Referring domains are a separate unique summary. Cap URLs at 1,000.
-    unique_urls = {}
+    # One canonical evidence URL per referring domain. The backlink list and
+    # referring_domains summary must represent the same deduplicated set.
+    by_domain = {}
     for row in result["backlinks"]:
-        unique_urls.setdefault(row["url"], row)
-    result["backlinks"] = list(unique_urls.values())[:1000]
-    for row in result["backlinks"]:
-        row["referring_domain"] = row.get("source_domain") or _hostname(row["url"])
-    result["referring_domains"] = list(dict.fromkeys(
-        row["referring_domain"] for row in result["backlinks"] if row.get("referring_domain")
-    ))
+        url = row.get("url")
+        referring_domain = row.get("source_domain") or _hostname(url or "")
+        if not url or not referring_domain:
+            continue
+        row["referring_domain"] = referring_domain
+        by_domain.setdefault(referring_domain, row)
+    result["backlinks"] = list(by_domain.values())[:1000]
+    result["referring_domains"] = [row["referring_domain"] for row in result["backlinks"]]
     result["count"] = len(result["backlinks"])
     if result["count"]:
         result["status"] = "ok"
