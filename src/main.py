@@ -15,7 +15,7 @@ if env_file.exists():
             key, val = line.split("=", 1)
             os.environ.setdefault(key.strip(), val.strip())
 
-from fastapi import FastAPI, Request, Query
+from fastapi import FastAPI, Request, Query, HTTPException
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -3724,23 +3724,38 @@ async def erc8004_provider_info():
 
 @app.get("/v1/erc8004/agents", tags=["Identity"])
 async def erc8004_agents(limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), chain_id: int | None = None, payment: str = ""):
-    return erc8004_provider.agents(limit, offset, chain_id, payment)
+    try:
+        return erc8004_provider.agents(limit, offset, chain_id, payment)
+    except RuntimeError as error:
+        raise HTTPException(status_code=getattr(error, "status_code", 502), detail=getattr(error, "detail", str(error)))
 
 @app.get("/v1/erc8004/agents/{agent_id}", tags=["Identity"])
 async def erc8004_agent(agent_id: str, payment: str = ""):
-    return erc8004_provider.agent(agent_id, payment)
+    try:
+        return erc8004_provider.agent(agent_id, payment)
+    except RuntimeError as error:
+        raise HTTPException(status_code=getattr(error, "status_code", 502), detail=getattr(error, "detail", str(error)))
 
 @app.get("/v1/erc8004/agents/{agent_id}/reputation", tags=["Identity"])
 async def erc8004_reputation(agent_id: str, payment: str = ""):
-    return erc8004_provider.reputation(agent_id, payment)
+    try:
+        return erc8004_provider.reputation(agent_id, payment)
+    except RuntimeError as error:
+        raise HTTPException(status_code=getattr(error, "status_code", 502), detail=getattr(error, "detail", str(error)))
 
 @app.get("/v1/erc8004/agents/{agent_id}/feedback", tags=["Identity"])
 async def erc8004_feedback(agent_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), payment: str = ""):
-    return erc8004_provider.feedback(agent_id, limit, offset, payment)
+    try:
+        return erc8004_provider.feedback(agent_id, limit, offset, payment)
+    except RuntimeError as error:
+        raise HTTPException(status_code=getattr(error, "status_code", 502), detail=getattr(error, "detail", str(error)))
 
 @app.get("/v1/erc8004/agents/{agent_id}/validations", tags=["Identity"])
 async def erc8004_validations(agent_id: str, limit: int = Query(25, ge=1, le=100), offset: int = Query(0, ge=0), payment: str = ""):
-    return erc8004_provider.validations(agent_id, limit, offset, payment)
+    try:
+        return erc8004_provider.validations(agent_id, limit, offset, payment)
+    except RuntimeError as error:
+        raise HTTPException(status_code=getattr(error, "status_code", 502), detail=getattr(error, "detail", str(error)))
 
 @app.post("/v1/agents/register", tags=["Identity"])
 async def agent_register(req: AgentRegistration):

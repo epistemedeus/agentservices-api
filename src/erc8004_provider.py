@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import quote
 
 import json
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 
@@ -22,13 +23,20 @@ class _HTTP:
         if params:
             url += "?" + urlencode(params)
         request = Request(url, headers=headers or {}, method="GET")
-        with urlopen(request, timeout=timeout) as response:
-            class Response:
-                status_code = response.status
-                text = response.read().decode()
-                def json(self):
-                    return json.loads(self.text)
-            return Response()
+        try:
+            response = urlopen(request, timeout=timeout)
+            status = response.status
+            body = response.read().decode()
+        except HTTPError as error:
+            status = error.code
+            body = error.read().decode()
+
+        class Response:
+            status_code = status
+            text = body
+            def json(self):
+                return json.loads(self.text)
+        return Response()
 
 
 requests = _HTTP()
