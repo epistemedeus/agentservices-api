@@ -227,6 +227,10 @@ def _npm_references(domain, limit=30):
         # npm search can match package names/descriptions without a link.
         if domain not in (homepage + " " + repo).lower():
             continue
+        # A package owned by the target is a first-party surface, not an
+        # external backlink. Do not count it in this endpoint.
+        if _is_self_url(homepage, domain) or _is_self_url(repo, domain):
+            continue
         pages.append(_evidence(f"https://www.npmjs.com/package/{urllib.parse.quote(name, safe='@/')}", domain,
             "npm", "ecosystem_surface", verified=True, evidence="npm metadata homepage or repository points to target domain",
             title=name, description=package.get("description", ""), version=package.get("version"), homepage=homepage, repository=repo))
@@ -234,57 +238,44 @@ def _npm_references(domain, limit=30):
 
 
 def backlink_intelligence(domain: str, site_url: str | None = None):
+    """Return a URL-level list of external pages that reference the domain."""
     domain = domain.strip().lower().replace("https://", "").replace("http://", "").split("/", 1)[0]
     if not domain or "." not in domain or any(ch in domain for ch in " <>\\\"'"):
         raise ValueError("domain must be a hostname")
-    site_url = site_url or f"https://{domain}/"
+
     result = {
         "domain": domain,
         "status": "insufficient_data",
-        "coverage": {"authoritative_backlink_index": False, "public_discovery_search": False, "ecosystem_surface_scan": False},
-        "summary": {"verified_backlinks": None, "external_references": 0, "first_party_surfaces": 0, "self_references_removed": True},
-        "backlinks": [], "external_references": [], "ecosystem_surfaces": [], "sources": {},
-        "limitations": ["No authoritative backlink provider is configured until Bing Webmaster credentials are supplied.", "Search results prove discovery, not a complete backlink index; each result should be fetched before treating it as a live hyperlink."],
+        "count": 0,
+        "backlinks": [],
+        "sources": {},
+        "limitations": [
+            "Results are discovered references, not an exhaustive commercial backlink index.",
+            "Each result includes the source URL and the evidence used to identify the target-domain link.",
+        ],
     }
-    try:
-        pages, total_pages = _bing_pages(site_url, "GetLinkCounts")
-        result["bing"] = {"site_url": site_url, "pages": pages, "total_pages": total_pages, "configured": bool(_bing_key())}
-        result["sources"]["bing_webmaster"] = {"status": "ok" if _bing_key() else "not_configured", "type": "authoritative_verified_site"}
-        if _bing_key():
-            result["coverage"]["authoritative_backlink_index"] = True
-            result["backlinks"].extend(pages)
-    except Exception as exc:
-        result["bing"] = {"site_url": site_url, "pages": [], "configured": bool(_bing_key()), "error": type(exc).__name__}
-    for name, loader, label in (("public_search", _public_search_references, "public search references"), ("exa", _exa_backlinks, "indexed web references"), ("github", _github_references, "GitHub ecosystem surfaces"), ("npm", _npm_references, "npm ecosystem surfaces")):
+    providers = (
+        ("github", _github_references, "GitHub code search"),
+        ("npm", _npm_references, "npm package metadata"),
+        ("public_search", _public_search_references, "public search results"),
+        ("exa", _exa_backlinks, "Exa indexed pages"),
+    )
+    for name, loader, label in providers:
         try:
-            result[name] = loader(domain)
-            result["sources"][name] = {"status": "ok" if result[name].get("pages") else "no_results", "type": label}
-            if name in ("public_search", "exa", "github"):
-                result["coverage"]["public_discovery_search"] = True
-            else:
-                result["coverage"]["ecosystem_surface_scan"] = True
-            for page in result[name].get("pages", []):
-                if page.get("type") == "ecosystem_surface":
-                    result["ecosystem_surfaces"].append(page)
-                else:
-                    result["external_references"].append(page)
+            data = loader(domain)
+            rows = [row for row in data.get("pages", []) if row.get("url") and not _is_self_url(row["url"], domain)]
+            result["sources"][name] = {"name": label, "status": "ok" if rows else "no_results", "count": len(rows)}
+            result["backlinks"].extend(rows)
         except Exception as exc:
-            result[name] = {"pages": [], "error": type(exc).__name__, "configured": bool(_exa_key()) if name == "exa" else None}
-            result["sources"][name] = {"status": "not_configured" if name == "exa" and not _exa_key() else "error", "type": label}
-    try:
-        result["common_crawl"] = _common_crawl_rank(domain)
-        result["sources"]["common_crawl"] = {"status": "limited_coverage", "type": "domain_graph_signal"}
-    except Exception as exc:
-        result["common_crawl"] = {"found": False, "error": type(exc).__name__}
-    for key in ("backlinks", "external_references", "ecosystem_surfaces"):
-        unique = {}
-        for row in result[key]: unique.setdefault(row.get("url"), row)
-        result[key] = list(unique.values())
-    result["summary"]["verified_backlinks"] = len(result["backlinks"]) if result["coverage"]["authoritative_backlink_index"] else None
-    result["summary"]["external_references"] = len(result["external_references"])
-    result["summary"]["first_party_surfaces"] = len(result["ecosystem_surfaces"])
-    if result["summary"]["external_references"] or result["summary"]["first_party_surfaces"] or result["summary"]["verified_backlinks"]:
-        result["status"] = "partial" if not result["coverage"]["authoritative_backlink_index"] else "ok"
+            result["sources"][name] = {"name": label, "status": "error", "error": type(exc).__name__}
+
+    unique = {}
+    for row in result["backlinks"]:
+        unique.setdefault(row["url"], row)
+    result["backlinks"] = list(unique.values())
+    result["count"] = len(result["backlinks"])
+    if result["count"]:
+        result["status"] = "ok"
     return result
 
 
