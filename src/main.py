@@ -1175,44 +1175,28 @@ def _get_landing():
     return _landing_html
 
 
+def _live_capability_summary() -> dict:
+    """Generate discovery facts from the registered FastAPI schema, never stale copy."""
+    schema = app.openapi()
+    paths = schema.get("paths", {})
+    identity = [p for p in paths if p.startswith("/v1/erc8004/") or p.startswith("/v1/agents/") or p.startswith("/v1/evidence/") or p.startswith("/v1/claims/")]
+    return {"path_count": len(paths), "identity_evidence_paths": sorted(identity), "openapi": "/openapi.json", "generated": "runtime"}
+
+
 def _get_llms_full_markdown():
     """Return a concise markdown version of the landing page for content negotiation."""
-    return """# AgentServices — Premium APIs for AI Agents
+    live = _live_capability_summary()
+    return f"""# AgentServices — APIs for AI Agents
 
-53 paid APIs for AI agents. Data, search, market intelligence, DeFi strategy, cross-DEX arbitrage, AI inference. All via x402 (USDC on Base).
+AgentServices exposes {live['path_count']} registered API routes. Data, search, market intelligence, DeFi strategy, cross-DEX arbitrage, AI inference, ERC-8004 agent discovery, reputation, and evidence verification. Paid routes use x402 (USDC on Base).
 
-## What We Offer
+## Live capability discovery
 
-- **Crypto Data**: Prices, indicators (RSI, Bollinger, ATR), DeFi yields, whale tracking, exchange flows
-- **Market Intelligence**: Portfolio analysis, DeFi strategy reports, market pulse, on-chain overview
-- **Cross-DEX Arbitrage**: Real-time price discrepancies with gas-adjusted profitability modeling
-- **AI Inference**: LLM gateway (GPT-5.4, GPT-5.5, Gemini) via x402 micropayments
-- **Traditional Finance**: Stock quotes, SEC filings, commodities, FX rates, economic indicators
-- **Utility**: Web extraction, package security scans, SEO keyword research
-- **MCP Integration**: 37 tools via remote MCP server at /mcp
-
-## Quick Start
-
-```bash
-# Free: Get BTC price
-curl https://agentservices.to/v1/price/BTC
-
-# Paid: Get technical indicators (requires x402 payment)
-curl https://agentservices.to/v1/indicators/BTC
-
-# MCP config for Claude Desktop
-{"mcpServers":{"agentservices":{"url":"https://agentservices.to/mcp"}}}
-```
-
-## Links
-
-- [API Docs](https://agentservices.to/docs)
-- [Examples](https://agentservices.to/examples)
-- [GitHub](https://github.com/vbkotecha/agentservices-api)
-- [OpenAPI Spec](https://agentservices.to/openapi.json)
-- [x402 Manifest](https://agentservices.to/.well-known/x402.json)
+The capability list is generated from the deployed OpenAPI schema, not hardcoded marketing copy:
+- OpenAPI: https://agentservices.to/openapi.json
+- Catalog search: https://agentservices.to/v1/catalog/search
+- Identity and evidence routes: {', '.join(live['identity_evidence_paths'])}
 """
-
 
 @app.get("/")
 async def root(request: Request):
@@ -3442,9 +3426,10 @@ async def oauth_authorization_server():
 async def llms_txt():
     """Canonical index for AI agents and LLM crawlers. Follows the llms.txt convention."""
     from starlette.responses import PlainTextResponse
-    return PlainTextResponse(content="""# AgentServices
+    live = _live_capability_summary()
+    return PlainTextResponse(content=f"""# AgentServices
 
-> Paid APIs for AI agents. 53 services, 41 paid. Data, search, market intelligence, and inference. Agents pay per call via x402 (USDC on Base).
+> Paid APIs for AI agents. {live['path_count']} live routes generated from the deployed OpenAPI schema. Data, search, market intelligence, inference, and ERC-8004 identity/reputation/evidence. Agents pay per call via x402 (USDC on Base).
 
 ## Quick Start
 - Free endpoints: GET https://agentservices.to/v1/prices (crypto prices), GET https://agentservices.to/v1/fear-greed (market sentiment)
@@ -3455,6 +3440,9 @@ async def llms_txt():
 - Health check: https://agentservices.to/health
 - Task catalog: https://agentservices.to/v1/catalog/search?query=web+research
 - Tool contract: https://agentservices.to/v1/catalog/tools/research.web
+- Live capability schema: https://agentservices.to/openapi.json
+- ERC-8004 provider metadata: https://agentservices.to/v1/erc8004/provider
+- ERC-8004 agent discovery: https://agentservices.to/v1/erc8004/agents
 
 ## Key Endpoints
 - [Crypto Prices](https://agentservices.to/v1/prices): Free. Real-time prices for 1000+ tokens.
@@ -3486,10 +3474,11 @@ async def llms_txt():
 async def agents_txt():
     """Instructions for AI agents crawling or using AgentServices."""
     from starlette.responses import PlainTextResponse
-    return PlainTextResponse(content="""# AgentServices — Agent Instructions
+    live = _live_capability_summary()
+    return PlainTextResponse(content=f"""# AgentServices — Agent Instructions
 
 ## What This Service Does
-AgentServices provides paid API endpoints for AI agents. 53 services covering crypto market data, on-chain analytics, DeFi intelligence, market sentiment, stock data, web extraction, and AI inference.
+AgentServices provides paid API endpoints for AI agents. The deployed schema currently exposes {live['path_count']} routes covering crypto market data, on-chain analytics, DeFi intelligence, market sentiment, stock data, web extraction, AI inference, and ERC-8004 identity/reputation/evidence.
 
 ## How to Pay
 1. Make a GET/POST request to any paid endpoint
