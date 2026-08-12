@@ -256,7 +256,7 @@ _BAZAAR_ENDPOINT_INFO = {
     "/v1/seo/keywords": {"method": "GET", "route": "/v1/seo/keywords", "path_params": {}, "query": {"domain": "example.com", "topic": "AI"}, "body": None,
         "output_example": [{"keyword": "AI API", "volume": 12000, "difficulty": 45}]},
     "/v1/backlinks": {"method": "GET", "route": "/v1/backlinks", "path_params": {}, "query": {"domain": "example.com", "site_url": "https://example.com/"}, "body": None,
-        "output_example": {"domain": "example.com", "status": "ok", "count": 1, "backlinks": [{"url": "https://example.org/docs", "source_domain": "example.org", "evidence": "target domain link found in page"}], "sources": {"public_search": {"status": "ok", "count": 1}}}},
+        "output_example": {"domain": "example.com", "status": "ok", "count": 2, "limit": 50, "referring_domains": ["example.org", "github.com"], "backlinks": [{"url": "https://example.org/docs", "referring_domain": "example.org", "evidence": "target domain link found in page"}], "source_breakdown": {"public_search": 1, "github": 1}}},
     "/v1/models/all": {"method": "GET", "route": "/v1/models/all", "path_params": {}, "query": {}, "body": None,
         "output_example": {"providers": ["openai", "anthropic", "google", "deepseek"], "models": [{"id": "gpt-5.4-mini", "context": 128000}]}},
     "/v1/skills/market-overview": {"method": "GET", "route": "/v1/skills/market-overview", "path_params": {}, "query": {}, "body": None,
@@ -2897,7 +2897,7 @@ async def keyword_research(keyword: str):
 
 @app.get("/v1/backlinks", tags=["Utility"],
          summary="Backlink Intelligence",
-         description="Backlinks — URL-level list of external pages referencing the target domain. $0.02 USDC via x402.")
+         description="Backlinks — deduplicated referring domains with one evidence URL each, capped at 50. $0.02 USDC via x402.")
 async def backlink_research(domain: str, site_url: str | None = None):
     """Backlink intelligence ($0.02 per call via x402)."""
     return backlink_intelligence(domain, site_url)

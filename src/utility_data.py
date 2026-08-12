@@ -191,14 +191,14 @@ def _exa_backlinks(domain, limit=25):
     return {"configured": True, "query": query, "pages": pages, "count": len(pages)}
 
 
-def _github_references(domain, limit=30):
-    """Search GitHub code and verify each matching public file URL."""
+def _github_references(domain, limit=50):
+    """Search GitHub code and return a bounded, domain-dedupable candidate set."""
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "AgentServices/1.0"}
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if token:
         headers["Authorization"] = "Bearer " + token
     query = urllib.parse.quote(f'"{domain}"')
-    req = urllib.request.Request(f"https://api.github.com/search/code?q={query}&per_page={min(limit, 100)}", headers=headers)
+    req = urllib.request.Request(f"https://api.github.com/search/code?q={query}&per_page={min(limit, 50)}", headers=headers)
     with urllib.request.urlopen(req, timeout=20) as resp:
         data = json.loads(resp.read().decode(errors="replace"))
     pages = []
@@ -214,7 +214,7 @@ def _github_references(domain, limit=30):
             "code_search_total": data.get("total_count"), "repositories_scanned": len(data.get("items", []))}
 
 
-def _npm_references(domain, limit=30):
+def _npm_references(domain, limit=50):
     data = _fetch_json(f"https://registry.npmjs.org/-/v1/search?text={urllib.parse.quote(domain)}&size={min(limit, 250)}", timeout=15)
     pages = []
     for item in data.get("objects", []):
@@ -260,6 +260,7 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
         ("public_search", _public_search_references, "public search results"),
         ("exa", _exa_backlinks, "Exa indexed pages"),
     )
+    max_results = 50
     for name, loader, label in providers:
         try:
             data = loader(domain)
@@ -269,11 +270,23 @@ def backlink_intelligence(domain: str, site_url: str | None = None):
         except Exception as exc:
             result["sources"][name] = {"name": label, "status": "error", "error": type(exc).__name__}
 
-    unique = {}
+    # A backlink report is useful at referring-domain level, not as 30 files
+    # from one repository. Keep the strongest URL per referring domain and cap
+    # the response at 50 domains.
+    by_domain = {}
     for row in result["backlinks"]:
-        unique.setdefault(row["url"], row)
-    result["backlinks"] = list(unique.values())
+        referring_domain = row.get("source_domain") or _hostname(row.get("url", ""))
+        if not referring_domain:
+            continue
+        row["referring_domain"] = referring_domain
+        by_domain.setdefault(referring_domain, row)
+    result["backlinks"] = list(by_domain.values())[:max_results]
+    result["referring_domains"] = [row["referring_domain"] for row in result["backlinks"]]
     result["count"] = len(result["backlinks"])
+    result["limit"] = max_results
+    result["source_breakdown"] = {}
+    for row in result["backlinks"]:
+        result["source_breakdown"][row["source"]] = result["source_breakdown"].get(row["source"], 0) + 1
     if result["count"]:
         result["status"] = "ok"
     return result
