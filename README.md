@@ -1,6 +1,12 @@
 # AgentServices
 
 > The paid API layer for AI agents — data, intelligence, inference, and media via x402 micropayments
+>
+> **Canonical project:** https://github.com/vbkotecha/agentservices-api
+> **Official site:** https://agentservices.to
+> **License:** Apache-2.0
+>
+> AgentServices is an independent project. It is not affiliated with, endorsed by, or a replacement for any other x402 market-data provider.
 
 [![Version](https://img.shields.io/badge/version-6.0.0-brightgreen)](https://github.com/vbkotecha/agentservices-api)
 [![Network](https://img.shields.io/badge/network-Base%20Mainnet-blue)](https://base.org)
