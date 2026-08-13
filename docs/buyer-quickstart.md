@@ -115,7 +115,28 @@ python3 examples/build_x402_receipt.py \\
 
 The builder does not sign or settle payments. It records quoted terms and hashes the buyer-held challenge and result for later verification.
 
-## 12. Start with one paid call
+## 12. Run the Coinbase AgentKit integration
+
+Coinbase AgentKit is the named external integration target for this buyer path. Its native x402 action provider can inspect an AgentServices challenge, then retry the same URL with an EVM wallet and retain the returned response. The runnable adapter is [`examples/coinbase_agentkit_x402_buyer.py`](../examples/coinbase_agentkit_x402_buyer.py).
+
+Install the external integration and inspect the live challenge without submitting payment:
+
+```bash
+pip install coinbase-agentkit
+python3 examples/coinbase_agentkit_x402_buyer.py --challenge
+```
+
+The adapter retains the exact challenge as `payment-required.txt` and `payment-required.json`. For an explicitly authorized test wallet, set `PRIVATE_KEY` through the environment and pass the literal confirmation flag. The adapter uses Base mainnet, caps the requested payment at $0.10, and writes buyer-held evidence under `agentservices-evidence/`:
+
+```bash
+export PRIVATE_KEY='0x...'
+python3 examples/coinbase_agentkit_x402_buyer.py \\
+  --pay --confirm-payment --evidence-dir ./agentservices-evidence
+```
+
+The paid path must return HTTP 200 before it is treated as a purchased outcome. Keep `payment-required.json`, `paid-result.json`, and any `payment-proof.json`, then build the portable receipt from those files. Do not place wallet credentials in source code, prompts, or the evidence directory. The adapter never claims settlement or revenue; independently verify any transaction reference before making those claims.
+
+## 13. Start with one paid call
 
 ```text
 Goal: produce a concise research brief on the Base ecosystem.
