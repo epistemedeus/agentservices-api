@@ -17,8 +17,15 @@ import hashlib
 import re
 from pathlib import Path
 
-MEMORY_DIR = Path("/root/.letta/agent_memory")
-MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+MEMORY_DIR = Path(os.environ.get(
+    "AGENTSERVICES_MEMORY_DIR",
+    "/tmp/agentservices-memory" if os.environ.get("VERCEL") else "/root/.letta/agent_memory",
+))
+try:
+    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    MEMORY_DIR = Path("/tmp/agentservices-memory")
+    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _wallet_dir(wallet: str) -> Path:
