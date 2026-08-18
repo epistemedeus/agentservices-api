@@ -388,6 +388,104 @@ def _build_bazaar_extension(route_path, route_desc):
         base["schema"] = _build_bazaar_schema(info_data)
     return base
 
+# CDP Bazaar indexes from paymentPayload.resource on /settle (x402-foundation/x402#2156).
+# Buyer clients (e.g. awal / x402_requests) often omit resource on the payment proof.
+_CDP_RESOURCE_DESCRIPTION_MAX_LEN = 500  # x402-foundation/x402#2832
+
+
+def _normalize_public_resource_url(url: str) -> str:
+    if url.startswith("http://"):
+        return url.replace("http://", "https://", 1)
+    return url
+
+
+def _route_path_from_resource_url(url: str) -> str:
+    for host in ("api.agentservices.to", "agentservices.to", "aiservices.to"):
+        if host in url:
+            return url.split(host, 1)[-1].split("?", 1)[0]
+    from urllib.parse import urlparse
+
+    return urlparse(url).path or url
+
+
+def _backfill_settle_payment_payload(
+    payload_dict: dict,
+    resource_url: str,
+    route_desc: str = "AgentServices API",
+) -> dict:
+    """Ensure paymentPayload.resource and extensions.bazaar for CDP /settle indexing."""
+    resource_url = _normalize_public_resource_url(resource_url)
+    route_path = _route_path_from_resource_url(resource_url)
+
+    resource = payload_dict.get("resource")
+    if resource is None:
+        resource = {}
+    elif not isinstance(resource, dict):
+        resource = (
+            resource.model_dump(by_alias=True, exclude_none=True)
+            if hasattr(resource, "model_dump")
+            else dict(resource)
+        )
+
+    if not resource.get("url"):
+        resource["url"] = resource_url
+    else:
+        resource["url"] = _normalize_public_resource_url(resource["url"])
+
+    resource["serviceName"] = "AgentServices"
+    resource["tags"] = _BAZAAR_TAGS
+    desc = resource.get("description") or route_desc
+    resource["description"] = desc[:_CDP_RESOURCE_DESCRIPTION_MAX_LEN]
+    payload_dict["resource"] = resource
+
+    bazaar_ext = _build_bazaar_extension(route_path, route_desc)
+    extensions = payload_dict.get("extensions")
+    if extensions is None:
+        extensions = {}
+    elif not isinstance(extensions, dict):
+        extensions = (
+            extensions.model_dump(by_alias=True, exclude_none=True)
+            if hasattr(extensions, "model_dump")
+            else dict(extensions)
+        )
+    extensions.setdefault("bazaar", bazaar_ext)
+    payload_dict["extensions"] = extensions
+
+    return payload_dict
+
+
+def _apply_settle_resource_backfill(context) -> None:
+    """Mutate SettleContext.payment_payload before CDP /settle for Bazaar indexing."""
+    transport = context.transport_context
+    if transport is None or not hasattr(transport, "request"):
+        return
+
+    adapter = getattr(transport.request, "adapter", None)
+    if adapter is None or not hasattr(adapter, "get_url"):
+        return
+
+    resource_url = adapter.get_url()
+    if not resource_url:
+        return
+
+    payload = context.payment_payload
+    payload_dict = (
+        payload.model_dump(by_alias=True, exclude_none=True)
+        if hasattr(payload, "model_dump")
+        else dict(payload)
+    )
+    route_desc = "AgentServices API"
+    existing_resource = payload_dict.get("resource") or {}
+    if isinstance(existing_resource, dict) and existing_resource.get("description"):
+        route_desc = existing_resource["description"]
+
+    backfilled = _backfill_settle_payment_payload(payload_dict, resource_url, route_desc)
+
+    from x402.schemas import ResourceInfo
+
+    payload.resource = ResourceInfo.model_validate(backfilled["resource"])
+    payload.extensions = backfilled.get("extensions")
+
 @app.middleware("http")
 async def enrich_402_bazaar(request, call_next):
     response = await call_next(request)
@@ -498,15 +596,14 @@ try:
         facilitator_config_kwargs["url"] = CDP_FACILITATOR_URL
         facilitator_config_kwargs["auth_provider"] = CreateHeadersAuthProvider(create_cdp_auth_headers)
 
-    # CDP Bazaar indexing fix (x402-foundation/x402#2832):
-    # CDP facilitator /verify rejects payloads with resource/extensions.
-    # Subclass HTTPFacilitatorClient to strip those fields before POST.
-    # This restores CDP Bazaar indexing and x402scan marketplace visibility.
+    # CDP facilitator /verify rejects some v2 payloads carrying resource/extensions
+    # (x402-foundation/x402#2832) — strip on verify only. Bazaar indexes from
+    # paymentPayload.resource on /settle (x402-foundation/x402#2156), so backfill
+    # there via on_before_settle and forward resource + bazaar extensions.
     import httpx
 
     class CDPFixedFacilitatorClient(HTTPFacilitatorClient):
-        """HTTPFacilitatorClient that strips resource/extensions from paymentPayload
-        before sending to CDP /verify — fixes x402-foundation/x402#2832."""
+        """HTTPFacilitatorClient tuned for CDP verify/settle + Bazaar indexing."""
 
         def get_supported(self):
             # Unpaid 402 challenges only need supported kinds during initialize().
@@ -527,8 +624,11 @@ try:
 
         async def settle(self, payment_payload, payment_requirements):
             payload_dict = payment_payload.model_dump(by_alias=True, exclude_none=True) if hasattr(payment_payload, 'model_dump') else dict(payment_payload)
-            payload_dict.pop("resource", None)
-            payload_dict.pop("extensions", None)
+            # on_before_settle should have backfilled resource/extensions; keep them
+            # for CDP Bazaar indexing. Trim description defensively (#2832).
+            resource = payload_dict.get("resource")
+            if isinstance(resource, dict) and resource.get("description"):
+                resource["description"] = resource["description"][:_CDP_RESOURCE_DESCRIPTION_MAX_LEN]
             if hasattr(payment_payload, 'model_validate'):
                 cleaned = type(payment_payload).model_validate(payload_dict)
             else:
@@ -537,6 +637,11 @@ try:
 
     facilitator = CDPFixedFacilitatorClient(FacilitatorConfig(**facilitator_config_kwargs))
     payment_server = x402ResourceServer(facilitator)
+
+    async def _ensure_settle_resource_for_bazaar(context):
+        _apply_settle_resource_backfill(context)
+
+    payment_server.on_before_settle(_ensure_settle_resource_for_bazaar)
     # Register EVM networks (Base, BSC)
     payment_server.register(X402_BASE_NETWORK, ExactEvmServerScheme())
     if X402_IS_MULTICHAIN:
