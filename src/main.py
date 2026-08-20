@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from typing import List
 import sys
 
@@ -88,6 +89,8 @@ LLM inference gateway, marketing intelligence, and more.
 All paid endpoints use x402 protocol with USDC on Base.
 """,
 )
+
+app.mount("/_agent-ui", StaticFiles(directory=Path(__file__).parent / "agent_ui"), name="agent_ui")
 
 class DynamicBodyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
