@@ -26,6 +26,6 @@ jobs:
       - name: Login via DNS
         env:
           MCP_DNS_KEY: ${{ secrets.MCP_DNS_PRIVATE_KEY }}
-        run: mcp-publisher login dns --domain aiservices.to --private-key "$MCP_DNS_KEY"
+        run: mcp-publisher login dns --domain agentservices.to --private-key "$MCP_DNS_KEY"
       - name: Publish to MCP Registry
         run: mcp-publisher publish server.json
