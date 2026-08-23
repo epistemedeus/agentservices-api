@@ -110,7 +110,7 @@ def mcp_json() -> dict:
     )
     return {
         "name": "AgentServices",
-        "version": "5.3.0",
+        "version": "6.0.0",
         "description": description,
         "mcp_endpoint": MCP_URL,
         "transport": "streamable-http",

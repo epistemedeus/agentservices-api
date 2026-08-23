@@ -69,7 +69,7 @@ INDEXNOW_KEY = "42b652cb-203a-42db-8a86-4e94fbfcbeae"
 
 app = FastAPI(
     title="AgentServices",
-    version="5.3.0",
+    version="6.0.0",
     docs_url=None,
     redoc_url=None,
     contact={
@@ -1434,7 +1434,7 @@ async def root(request: Request):
         return {
             "name": "AgentServices",
             "tagline": "Paid APIs for AI agents — data, inference, and market intelligence",
-            "version": "5.3.0",
+            "version": "6.0.0",
             "payment": "x402 / USDC on Base",
             "wallet": X402_WALLET,
             "services": {
@@ -1513,7 +1513,7 @@ async def api_discovery():
     return {
         "name": "AgentServices",
         "tagline": "Paid APIs for AI agents — data, inference, and market intelligence",
-        "version": "5.3.0",
+        "version": "6.0.0",
         "payment": "x402 / USDC on Base",
         "wallet": X402_WALLET,
         "services": {
@@ -1585,7 +1585,7 @@ async def health():
     from human_billing.config import oauth_enabled, credits_enabled, human_door_enabled
     return {
         "status": "ok",
-        "version": "5.3.0",
+        "version": "6.0.0",
         "deploy": {
             "commit": os.environ.get("VERCEL_GIT_COMMIT_SHA"),
             "ref": os.environ.get("VERCEL_GIT_COMMIT_REF"),
@@ -1749,7 +1749,7 @@ async def agent_json():
     """Agent discovery manifest for AI agent platforms and crawlers."""
     return {
         "name": "AgentServices",
-        "version": "5.3.0",
+        "version": "6.0.0",
         "description": "Paid data APIs for AI agents — crypto, DeFi, DEX, prediction markets, news, search, geolocation, metadata, on-chain analytics, whale tracking, DeFi TVL, correlation matrix, stablecoin flows, GitHub velocity, macro indicators",
         "url": "https://agentservices.to",
         "capabilities": [
@@ -2193,7 +2193,7 @@ async def agent_card():
         "description": "Paid APIs for AI agents. 53 services, 41 paid. Data, search, market intelligence, inference, and services agents pay for via x402.",
         "type": "Service",
         "protocolVersion": "1.0",
-        "version": "5.3.0",
+        "version": "6.0.0",
         "url": "https://agentservices.to",
         "logo": "https://agentservices.to/favicon.ico",
         "skills": [
@@ -2254,7 +2254,7 @@ async def agent_skills_index():
                 "name": "agentservices",
                 "description": "53 paid APIs for AI agents — crypto data, market intelligence, on-chain analytics, DeFi strategy, cross-DEX arbitrage, AI inference, web extraction, and more.",
                 "manifest": "https://agentservices.to/.well-known/agentskills/agentservices/SKILL.md",
-                "version": "5.3.0",
+                "version": "6.0.0",
                 "license": "MIT",
                 "payment": {
                     "protocol": "x402",
@@ -2299,7 +2299,7 @@ async def ai_catalog():
                     "scan for cross-DEX arbitrage opportunities",
                     "run AI inference with GPT or Gemini models",
                 ],
-                "version": "5.3.0",
+                "version": "6.0.0",
                 "updatedAt": "2026-07-08T07:00:00Z",
                 "metadata": {
                     "pricing": "freemium ($0.01-$0.25 per call, USDC on Base)",
@@ -2327,7 +2327,7 @@ async def ai_catalog():
                     "extract content from web pages",
                     "check npm package security",
                 ],
-                "version": "5.3.0",
+                "version": "6.0.0",
                 "updatedAt": "2026-07-08T07:00:00Z",
             },
         ],
@@ -2431,7 +2431,7 @@ compatibility: >-
   required -- standard REST API with optional MCP transport.
 metadata:
   author: AgentServices
-  version: "5.3.0"
+  version: "6.0.0"
   website: "https://agentservices.to"
   api_base_url: "https://agentservices.to"
   repository: "https://github.com/vbkotecha/agentservices-api"
@@ -3577,7 +3577,7 @@ async def agents_json():
         "name": "AgentServices",
         "description": "Paid APIs for AI agents. 53 services covering crypto data, market intelligence, on-chain analytics, DeFi strategy, AI inference, web extraction, and more. All via x402 (USDC on Base).",
         "url": "https://agentservices.to",
-        "version": "5.3.0",
+        "version": "6.0.0",
         "contact": {
             "email": "hustlemode@agentmail.to",
         },

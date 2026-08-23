@@ -17,7 +17,7 @@ compatibility: >-
   required -- standard REST API with optional MCP transport.
 metadata:
   author: AgentServices
-  version: "5.3.0"
+  version: "6.0.0"
   website: "https://agentservices.to"
   api_base_url: "https://agentservices.to"
   repository: "https://github.com/vbkotecha/agentservices-api"

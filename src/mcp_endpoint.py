@@ -566,7 +566,7 @@ def build_server_card() -> dict:
     card = {
         "serverInfo": {
             "name": "AgentServices",
-            "version": "5.3.0",
+            "version": "6.0.0",
             "description": description,
         },
         "transport": {
@@ -679,7 +679,7 @@ async def mcp_handler(request: Request):
                 },
                 "serverInfo": {
                     "name": "AgentServices",
-                    "version": "5.3.0",
+                    "version": "6.0.0",
                     "description": "Paid APIs for AI agents — 53 services, 41 paid. x402 on Base.",
                 },
                 "instructions": "Use tools/list to see available tools. Free tools: crypto_prices, fear_greed, ip_geolocation, list_policies, agent_context. Paid tools return HTTP 402 for x402 payment.",
@@ -699,7 +699,7 @@ async def mcp_handler(request: Request):
                 },
                 "serverInfo": {
                     "name": "AgentServices",
-                    "version": "5.3.0",
+                    "version": "6.0.0",
                 }
             }
         }
