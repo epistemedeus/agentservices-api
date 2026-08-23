@@ -357,7 +357,7 @@ Event: `checkout.session.completed`
 - **FastAPI** (Python 3.11+)
 - **x402 v2** payment middleware (Coinbase CDP facilitator)
 - **USDC** on **Base Mainnet** (EIP-3009 gasless transfers)
-- Deployed on Railway with custom domain + TLS
+- Deployed on **Vercel** (`agentservices.to` + `api.agentservices.to`, auto-deploy from `main`)
 
 ## Coinbase AgentKit Integration
 
