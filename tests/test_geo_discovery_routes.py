@@ -99,6 +99,19 @@ def test_schema_json_matches_openapi_json():
     assert schema.json() == openapi.json()
 
 
+def test_ai_plugin_json_matches_well_known_ai_plugin_json():
+    canonical = client.get("/ai-plugin.json")
+    well_known = client.get("/.well-known/ai-plugin.json")
+
+    assert canonical.status_code == 200
+    assert well_known.status_code == 200
+    assert canonical.headers["content-type"].startswith("application/json")
+    assert well_known.headers["content-type"].startswith("application/json")
+    assert canonical.json() == well_known.json()
+    assert canonical.json()["schema_version"] == "v1"
+    assert canonical.json()["name_for_human"] == "AgentServices"
+
+
 def test_mcp_json_matches_well_known_mcp_json():
     root = client.get("/mcp.json")
     well_known = client.get("/.well-known/mcp.json")

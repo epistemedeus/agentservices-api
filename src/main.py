@@ -1617,6 +1617,7 @@ async def favicon():
     return {"detail": "not found"}, 404
 
 
+@app.get("/ai-plugin.json")
 @app.get("/.well-known/ai-plugin.json")
 async def ai_plugin():
     from discovery_surfaces import ai_plugin_manifest
@@ -1969,6 +1970,8 @@ async def sitemap_xml():
         "https://agentservices.to/.well-known/ai-catalog.json",
         "https://agentservices.to/.well-known/agent-card.json",
         "https://agentservices.to/.well-known/agentskills/agentservices/SKILL.md",
+        "https://agentservices.to/ai-plugin.json",
+        "https://agentservices.to/.well-known/ai-plugin.json",
     ]
     xml_parts = ['<?xml version="1.0" encoding="UTF-8"?>']
     xml_parts.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
