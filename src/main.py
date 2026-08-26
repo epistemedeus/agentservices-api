@@ -1965,6 +1965,7 @@ async def sitemap_xml():
         "https://agentservices.to/server.json",
         "https://agentservices.to/mcp.json",
         "https://agentservices.to/agents.txt",
+        "https://agentservices.to/.well-known/agents.txt",
         "https://agentservices.to/.well-known/x402.json",
         "https://agentservices.to/.well-known/mcp/server-card.json",
         "https://agentservices.to/.well-known/ai-catalog.json",
@@ -3560,6 +3561,9 @@ async def llms_txt():
 
 # --- agents.txt (agent instructions) ---
 @app.get("/agents.txt", tags=["Discovery"],
+         summary="Agent instructions file",
+         response_class=PlainTextResponse)
+@app.get("/.well-known/agents.txt", tags=["Discovery"],
          summary="Agent instructions file",
          response_class=PlainTextResponse)
 async def agents_txt():
