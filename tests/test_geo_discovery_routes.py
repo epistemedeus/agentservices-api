@@ -67,6 +67,19 @@ def test_well_known_agents_txt_matches_agents_txt():
     assert canonical.text.startswith("# AgentServices")
 
 
+def test_well_known_security_txt_matches_security_txt():
+    canonical = client.get("/security.txt")
+    well_known = client.get("/.well-known/security.txt")
+
+    assert canonical.status_code == 200
+    assert well_known.status_code == 200
+    assert canonical.headers["content-type"].startswith("text/plain")
+    assert well_known.headers["content-type"].startswith("text/plain")
+    assert canonical.text == well_known.text
+    assert "mailto:hustlemode@agentmail.to" in canonical.text
+    assert "Canonical: https://agentservices.to/.well-known/security.txt" in canonical.text
+
+
 def test_server_json_serves_registry_manifest():
     response = client.get("/server.json")
 

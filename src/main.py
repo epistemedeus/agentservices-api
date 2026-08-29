@@ -1968,6 +1968,8 @@ async def sitemap_xml():
         "https://agentservices.to/mcp.json",
         "https://agentservices.to/agents.txt",
         "https://agentservices.to/.well-known/agents.txt",
+        "https://agentservices.to/security.txt",
+        "https://agentservices.to/.well-known/security.txt",
         "https://agentservices.to/.well-known/x402.json",
         "https://agentservices.to/.well-known/mcp/server-card.json",
         "https://agentservices.to/.well-known/ai-catalog.json",
@@ -3559,6 +3561,16 @@ async def llms_txt():
     from discovery_surfaces import llms_txt_content
     live = _live_capability_summary()
     return PlainTextResponse(content=llms_txt_content(live["path_count"]), media_type="text/plain")
+
+
+# --- security.txt (RFC 9116 security contact) ---
+@app.get("/security.txt", include_in_schema=False)
+@app.get("/.well-known/security.txt", include_in_schema=False)
+async def security_txt():
+    """RFC 9116 security contact for vulnerability reports."""
+    from starlette.responses import PlainTextResponse
+    from discovery_surfaces import security_txt_content
+    return PlainTextResponse(content=security_txt_content(), media_type="text/plain")
 
 
 # --- agents.txt (agent instructions) ---
