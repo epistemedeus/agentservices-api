@@ -31,6 +31,20 @@ from geo_data import get_ip_geo
 from web_data import get_url_metadata
 from search_data import web_search
 from dex_data import get_swap_quote, get_trending_tokens, get_gas_tracker
+from hyperliquid_data import (
+    HLExecutionPolicy,
+    HLForwardRequest,
+    HLPolicyEvalRequest,
+    HLPaperOrderRequest,
+    bootstrap_doc,
+    eval_order_against_policy,
+    forward_signed_action,
+    get_order_status,
+    get_paper_orders,
+    get_policy,
+    place_paper_order,
+    set_policy,
+)
 from prediction_data import get_polymarket_markets, get_polymarket_market, get_prediction_summary
 from news_data import get_crypto_news, get_social_trending, get_global_market
 from engine.policy_engine import evaluate_dispute, list_policies
@@ -1229,6 +1243,72 @@ async def swap_quote(
     return get_swap_quote(chain, sellToken, buyToken, sell_amount=sellAmount)
 
 
+# --- Hyperliquid execution (agent-signed, policy-gated; FREE — no x402) ---
+
+@app.get("/v1/hl/bootstrap", tags=["Hyperliquid"],
+         summary="HL agent-sign bootstrap",
+         description="How to wire approveAgent + local signing. No venue API keys collected.")
+async def hl_bootstrap():
+    return bootstrap_doc()
+
+
+@app.get("/v1/hl/policy/{principal}", tags=["Hyperliquid"],
+         summary="Get execution policy",
+         description="Read leash policy for a principal wallet (max notional, coin allowlist, kill switch).")
+async def hl_get_policy(principal: str):
+    return get_policy(principal)
+
+
+@app.put("/v1/hl/policy", tags=["Hyperliquid"],
+         summary="Set execution policy",
+         description="Install or update leash policy for a principal wallet.")
+async def hl_put_policy(policy: HLExecutionPolicy):
+    return set_policy(policy)
+
+
+@app.post("/v1/hl/order", tags=["Hyperliquid"],
+          summary="Forward signed HL order",
+          description="Policy-check then forward agent-signed L1 order to Hyperliquid. "
+                      "Agent signs locally; we do not collect venue API keys. FREE — not x402.")
+async def hl_place_order(req: HLForwardRequest):
+    return forward_signed_action(req)
+
+
+@app.post("/v1/hl/cancel", tags=["Hyperliquid"],
+          summary="Forward signed HL cancel",
+          description="Policy-check then forward agent-signed cancel to Hyperliquid. FREE — not x402.")
+async def hl_cancel_order(req: HLForwardRequest):
+    return forward_signed_action(req)
+
+
+@app.get("/v1/hl/order/status", tags=["Hyperliquid"],
+         summary="HL order status",
+         description="Read order status from Hyperliquid info API (no signing).")
+async def hl_order_status(user: str = Query(..., description="Main wallet address"), oid: str = Query(..., description="Order id")):
+    return get_order_status(user, oid)
+
+
+@app.post("/v1/hl/paper/order", tags=["Hyperliquid", "Training"],
+          summary="Paper trade order",
+          description="Simulated order with same shape as live path — training gym, no HL call.")
+async def hl_paper_order(req: HLPaperOrderRequest):
+    return place_paper_order(req)
+
+
+@app.get("/v1/hl/paper/orders", tags=["Hyperliquid", "Training"],
+         summary="List paper orders",
+         description="List simulated orders for a principal.")
+async def hl_paper_orders(principal: str = Query("paper-agent")):
+    return {"principal": principal, "orders": get_paper_orders(principal)}
+
+
+@app.post("/v1/hl/eval/order", tags=["Hyperliquid", "Training"],
+          summary="Policy eval (pass/fail)",
+          description="Given cap policy + candidate order fields, return pass or fail. Training gym.")
+async def hl_eval_order(req: HLPolicyEvalRequest):
+    return eval_order_against_policy(req.principal, req.coin, req.side, req.size, req.price)
+
+
 @app.get("/v1/trending", tags=["Market Data"],
          summary="Trending Tokens",
          description="Get trending tokens and coins being searched right now on CoinGecko.")
@@ -1691,6 +1771,10 @@ async def x402_manifest():
         {"path": "/v1/gas", "method": "GET", "price": "$0.00", "description": "Current ETH gas prices (FREE)"},
         {"path": "/v1/geo/{ip}", "method": "GET", "price": "$0.00", "description": "IP geolocation lookup (FREE)"},
         {"path": "/v1/swap/quote", "method": "GET", "price": "$0.00", "description": "DEX swap quote across 6 chains (FREE)"},
+        {"path": "/v1/hl/order", "method": "POST", "price": "$0.00", "description": "Hyperliquid perp order forward (agent-signed, policy-gated, FREE — not x402)"},
+        {"path": "/v1/hl/cancel", "method": "POST", "price": "$0.00", "description": "Hyperliquid cancel forward (agent-signed, FREE — not x402)"},
+        {"path": "/v1/hl/paper/order", "method": "POST", "price": "$0.00", "description": "Paper/sim HL order for agent training (FREE)"},
+        {"path": "/v1/hl/eval/order", "method": "POST", "price": "$0.00", "description": "Policy pass/fail eval for training (FREE)"},
         {"path": "/v1/predictions", "method": "GET", "price": "$0.00", "description": "Active prediction markets (FREE)"},
         {"path": "/v1/news", "method": "GET", "price": "$0.00", "description": "Latest crypto news (FREE)"},
         {"path": "/v1/social", "method": "GET", "price": "$0.00", "description": "Trending coins, categories, NFTs (FREE)"},

@@ -84,7 +84,31 @@ The four proofs have different limits: discovery and free SDK verify no-spend ac
 | `GET /v1/geo?ip=1.2.3.4` | IP geolocation lookup |
 | `GET /v1/swap/quote?from=&to=&amount=` | DEX swap quote (0x integration) |
 | `GET /v1/policies` | List dispute resolution policy templates |
+| `GET /v1/hl/bootstrap` | Hyperliquid agent-sign bootstrap (approveAgent flow) |
+| `POST /v1/hl/order` | Forward agent-signed HL perp order (policy-gated) |
+| `POST /v1/hl/cancel` | Forward agent-signed HL cancel |
+| `GET /v1/hl/order/status` | HL order status (read-only) |
+| `PUT /v1/hl/policy` | Set execution leash (max notional, coin allowlist, kill switch) |
+| `POST /v1/hl/paper/order` | Paper/sim order for agent training |
+| `POST /v1/hl/eval/order` | Policy pass/fail eval (training gym) |
 | `GET /health` | API health check |
+
+### Hyperliquid execution (FREE — not x402)
+
+AgentServices is a **door + leash** for Hyperliquid perps, not a smarter router. We do **not** claim better fills than HL direct. Execution is **free at the call** (no x402 on the order path). Optional builder fees are omitted so routing through us is not more expensive than going direct.
+
+**We never collect venue API keys.** Agents sign orders locally with an HL-approved agent wallet (`approveAgent` on the main wallet is the one human bootstrap step). AgentServices policy-checks (max notional, BTC/ETH allowlist, kill switch) and forwards the signed payload to Hyperliquid.
+
+| MCP tool | HTTP equivalent |
+|----------|-----------------|
+| `hl_place_order` | `POST /v1/hl/order` |
+| `hl_cancel_order` | `POST /v1/hl/cancel` |
+| `hl_order_status` | `GET /v1/hl/order/status` |
+| `hl_get_policy` / `hl_set_policy` | `GET/PUT /v1/hl/policy` |
+| `hl_paper_order` | `POST /v1/hl/paper/order` |
+| `hl_eval_order` | `POST /v1/hl/eval/order` |
+
+See `GET /v1/hl/bootstrap` for the approveAgent signing model.
 
 ### Paid — Data APIs (x402)
 | Endpoint | Price | Description |
