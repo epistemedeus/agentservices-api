@@ -178,6 +178,15 @@ def llms_txt_content(path_count: int) -> str:
 """
 
 
+def security_txt_content() -> str:
+    return (
+        "Contact: mailto:hustlemode@agentmail.to\n"
+        "Expires: 2027-08-28T19:00:00.000Z\n"
+        "Preferred-Languages: en\n"
+        "Canonical: https://agentservices.to/.well-known/security.txt\n"
+    )
+
+
 def agents_txt_content(path_count: int) -> str:
     mcp_auth = (
         "Google OAuth + Stripe credits for ChatGPT/human MCP users. "

@@ -22,6 +22,8 @@ REQUIRED_DISCOVERY_LOCS = [
     "https://agentservices.to/mcp.json",
     "https://agentservices.to/agents.txt",
     "https://agentservices.to/.well-known/agents.txt",
+    "https://agentservices.to/security.txt",
+    "https://agentservices.to/.well-known/security.txt",
     "https://agentservices.to/ai-plugin.json",
     "https://agentservices.to/.well-known/ai-plugin.json",
 ]
