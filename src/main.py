@@ -1631,11 +1631,9 @@ async def mcp_registry_auth():
     # Public key MUST match the MCP_DNS_PRIVATE_KEY GitHub secret.
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse(
-        "v=MCPv1; k=ed25519; p=OqBiR2kex0Puq9ngy+W9q3h+Zrrz63SUaMJrjU5PMbE=
-",
+        "v=MCPv1; k=ed25519; p=OqBiR2kex0Puq9ngy+W9q3h+Zrrz63SUaMJrjU5PMbE=" + chr(10),
         media_type="text/plain",
     )
-
 
 @app.get("/skill.md")
 async def skill_md():
