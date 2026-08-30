@@ -1624,6 +1624,19 @@ async def ai_plugin():
     return ai_plugin_manifest()
 
 
+
+@app.get("/.well-known/mcp-registry-auth", include_in_schema=False)
+async def mcp_registry_auth():
+    # MCP Registry HTTP domain verification (mcp-publisher login http).
+    # Public key MUST match the MCP_DNS_PRIVATE_KEY GitHub secret.
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(
+        "v=MCPv1; k=ed25519; p=OqBiR2kex0Puq9ngy+W9q3h+Zrrz63SUaMJrjU5PMbE=
+",
+        media_type="text/plain",
+    )
+
+
 @app.get("/skill.md")
 async def skill_md():
     from fastapi.responses import PlainTextResponse
